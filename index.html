@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>PeopleOS – HR Management</title>
+<title>Nimba People – HR Management</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
 <style>
 /* CSS Variables & Theme */
@@ -13,9 +13,11 @@
   --border: #e2e8f0;
   --text-main: #0f172a;
   --text-muted: #64748b;
-  --primary: #4f46e5;
-  --primary-hover: #4338ca;
-  --primary-light: #e0e7ff;
+  --primary: #1a3a5c;
+  --primary-hover: #122a44;
+  --primary-light: #e3edf6;
+  --gold: #c9a84c;
+  --gold-light: #fdf6e3;
   --danger: #ef4444;
   --danger-light: #fee2e2;
   --success: #10b981;
@@ -58,7 +60,7 @@ body{background:var(--bg);font-family:'Inter',sans-serif;color:var(--text-main)}
   border: none; transition: all 0.2s; font-family: 'Inter', sans-serif;
 }
 .btn:active { transform: scale(0.98); }
-.btn-primary { background: var(--primary); color: #fff; box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2); }
+.btn-primary { background: var(--primary); color: #fff; box-shadow: 0 2px 4px rgba(26, 58, 92, 0.25); }
 .btn-primary:hover { background: var(--primary-hover); }
 .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
 .btn-ghost:hover { background: var(--bg); color: var(--text-main); }
@@ -143,7 +145,7 @@ const DEPTS=["Engineering","Design","Marketing","Sales","HR","Finance","Operatio
 const STATS=["Active","On Leave","Terminated","Probation"];
 const ROLES=["Junior","Mid-level","Senior","Lead","Manager","Director","VP","C-Level"];
 const LT=["Annual","Sick","Maternity","Paternity","Unpaid","Bereavement"];
-const AC=["#4f46e5","#0ea5e9","#10b981","#f59e0b","#ec4899","#8b5cf6"]; 
+const AC=["#1a3a5c","#c9a84c","#0ea5e9","#10b981","#f59e0b","#8b5cf6"];
 
 // Seed Data for 2026 Context
 const SE=[
@@ -326,10 +328,20 @@ function App(){
       <aside>
         <header style={{padding:"28px 20px 24px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-            <div style={{width:32,height:32,background:"var(--primary)",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}}><Svg d={IC.bag} size={16} col="#fff"/></div>
-            <span className="brand-font" style={{fontSize:18,fontWeight:800,color:"var(--text-main)"}}>PeopleOS</span>
+            {/* Nimba People logo mark — gold briefcase outline on navy */}
+            <div style={{width:36,height:36,background:"var(--primary)",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="7" width="20" height="14" rx="2"/>
+                <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
+                <line x1="12" y1="12" x2="12" y2="12"/>
+                <path d="M2 12h20"/>
+              </svg>
+            </div>
+            <div>
+              <span className="brand-font" style={{fontSize:17,fontWeight:800,color:"var(--text-main)",letterSpacing:"-0.01em",display:"block",lineHeight:1.1}}>Nimba People</span>
+              <div style={{fontSize:9,color:"var(--text-muted)",letterSpacing:"0.12em",fontWeight:600,textTransform:"uppercase",marginTop:1}}>by DithaNimba Holdings</div>
+            </div>
           </div>
-          <div style={{fontSize:10,color:"var(--text-muted)",letterSpacing:"0.1em",fontWeight:600,marginLeft:2,textTransform:"uppercase"}}>HR Platform</div>
         </header>
         <nav style={{flex:1}}>
           {NAVS.map(([id,ic,lbl])=>(
