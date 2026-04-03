@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Nimba People – HR Management</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 /* CSS Variables & Theme */
 :root {
@@ -107,125 +108,75 @@ aside { width: 240px; background: var(--surface); border-right: 1px solid var(--
 <script type="text/babel" data-presets="react">
 const {useState,useEffect}=React;
 
-// SVG icon helper
-function Svg({d,size=16,col="currentColor",sw=1.8}){
+// Supabase client
+const {createClient}=supabase;
+const sb = createClient(
+  'https://tpnppkcknqzjmwkquqd.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwbnBwa2NrbnF6amFtd2txdWdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzExNzQsImV4cCI6MjA5MDQ0NzE3NH0.mQd7fMQle3lzr8ehKkOVwgzbTNoMoIkYwp8cqSFYR_k'
+);
+
+// Auth wrapper
+function AuthGate({children}){
+  const [session,setSession]=useState(undefined);
+  useEffect(()=>{
+    sb.auth.getSession().then(({data})=>setSession(data.session));
+    const {data:{subscription}}=sb.auth.onAuthStateChange((_,s)=>setSession(s));
+    return()=>subscription.unsubscribe();
+  },[]);
+  if(session===undefined)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"Inter,sans-serif",color:"#64748b"}}>Loading…</div>;
+  if(!session)return<LoginScreen/>;
+  return children;
+}
+
+// Login screen
+function LoginScreen(){
+  const [em,setEm]=useState('');
+  const [pw,setPw]=useState('');
+  const [err,setErr]=useState('');
+  const [loading,setLoading]=useState(false);
+  const [mode,setMode]=useState('login');
+
+  async function submit(){
+    setLoading(true);setErr('');
+    const fn=mode==='login'
+      ?sb.auth.signInWithPassword({email:em,password:pw})
+      :sb.auth.signUp({email:em,password:pw});
+    const {error}=await fn;
+    if(error)setErr(error.message);
+    setLoading(false);
+  }
+
   return(
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-      {(Array.isArray(d)?d:[d]).map((p,i)=><path key={i} d={p}/>)}
-    </svg>
-  );
-}
-const IC={
-  home:["M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z","M9 22V12h6v10"],
-  users:["M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2","M23 21v-2a4 4 0 00-3-3.87","M16 3.13a4 4 0 010 7.75","M9 7a4 4 0 100 8 4 4 0 000-8z"],
-  dollar:["M12 1v22","M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"],
-  cal:["M8 2v4","M16 2v4","M3 10h18","M21 8a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2h14a2 2 0 002-2V8z"],
-  bar:["M18 20V10","M12 20V4","M6 20v-6"],
-  bag:["M20 7H4a2 2 0 00-2 2v11a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z","M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"],
-  plus:"M12 5v14M5 12h14",
-  srch:["M11 19a8 8 0 100-16 8 8 0 000 16z","M21 21l-4.35-4.35"],
-  edit:["M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7","M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"],
-  del:["M3 6h18","M19 6l-1 14H6L5 6","M8 6V4h8v2"],
-  x:"M18 6L6 18M6 6l12 12",
-  ok:"M20 6L9 17l-5-5",
-  cd:"M6 9l6 6 6-6",
-  cr:"M9 18l6-6-6-6",
-  up:"M12 19V5M5 12l7-7 7 7",
-  dn:"M12 5v14M19 12l-7 7-7-7",
-  mail:["M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z","M22 6l-10 7L2 6"],
-  ph:"M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-4.92-4.92 19.79 19.79 0 01-3.07-8.67A2 2 0 012.06 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z",
-  pin:["M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z","M12 7a3 3 0 100 6 3 3 0 000-6z"],
-  uadd:["M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2","M8.5 7a4 4 0 100 8 4 4 0 000-8z","M20 8v6","M23 11h-6"],
-  cc:["M1 4h22v16H1z","M1 10h22"],
-  chkCircle:["M22 11.08V12a10 10 0 11-5.93-9.14","M22 4L12 14.01l-3-3"]
-};
-
-// Data
-const DEPTS=["Engineering","Design","Marketing","Sales","HR","Finance","Operations","Legal"];
-const STATS=["Active","On Leave","Terminated","Probation"];
-const ROLES=["Junior","Mid-level","Senior","Lead","Manager","Director","VP","C-Level"];
-const LT=["Annual","Sick","Maternity","Paternity","Unpaid","Bereavement"];
-const AC=["#1a3a5c","#c9a84c","#0ea5e9","#10b981","#f59e0b","#8b5cf6"];
-
-// Seed Data for 2026 Context
-const SE=[
-  {id:"e1",name:"Thabo Nkosi",    role:"Senior",  dept:"Engineering",sal:420000,st:"Active",   em:"thabo.nkosi@co.za",   ph:"+27 11 555 0101",loc:"Johannesburg, GP",jd:"2021-03-15",av:"TN"},
-  {id:"e2",name:"Zanele Dlamini", role:"Director", dept:"Marketing",  sal:580000,st:"Active",   em:"zanele.dlamini@co.za",ph:"+27 21 555 0188",loc:"Cape Town, WC",    jd:"2019-07-01",av:"ZD"},
-  {id:"e3",name:"Sipho Mokoena",  role:"Mid-level",dept:"Design",     sal:295000,st:"Active",   em:"sipho.mokoena@co.za", ph:"+27 31 555 0234",loc:"Durban, KZN",      jd:"2022-01-10",av:"SM"},
-  {id:"e4",name:"Lerato Khumalo", role:"Lead",     dept:"Engineering",sal:510000,st:"On Leave", em:"lerato.khumalo@co.za",ph:"+27 12 555 0312",loc:"Pretoria, GP",     jd:"2020-05-20",av:"LK"},
-  {id:"e5",name:"Nomsa Sithole",  role:"Manager",  dept:"HR",         sal:380000,st:"Active",   em:"nomsa.sithole@co.za", ph:"+27 11 555 0455",loc:"Johannesburg, GP", jd:"2018-11-03",av:"NS"},
-  {id:"e6",name:"Bongani Zulu",   role:"Junior",   dept:"Sales",      sal:195000,st:"Probation",em:"bongani.zulu@co.za",  ph:"+27 21 555 0567",loc:"Cape Town, WC",    jd:"2025-02-14",av:"BZ"},
-];
-const SL=[
-  {id:"l1",eid:"e1",type:"Annual",     fr:"2026-04-10",to:"2026-04-17",st:"Pending",  rs:"Family vacation"},
-  {id:"l2",eid:"e4",type:"Sick",       fr:"2026-03-20",to:"2026-04-05",st:"Approved", rs:"Medical recovery"},
-  {id:"l3",eid:"e3",type:"Bereavement",fr:"2026-03-28",to:"2026-03-31",st:"Approved", rs:"Family bereavement"},
-  {id:"l4",eid:"e6",type:"Annual",     fr:"2026-05-01",to:"2026-05-05",st:"Pending",  rs:"Holiday"},
-];
-const SP=[
-  {id:"p1",pd:"March 2026",    dt:"2026-03-28",tot:2380000,cnt:6,st:"Processed"},
-  {id:"p2",pd:"February 2026", dt:"2026-02-28",tot:2378000,cnt:6,st:"Processed"},
-];
-
-const gc=s=>s?AC[(s.charCodeAt(0)+(s.charCodeAt(1)||0))%AC.length]:AC[0];
-const R=n=>"R "+new Intl.NumberFormat("en-ZA",{maximumFractionDigits:0}).format(n);
-const D=d=>d?new Date(d).toLocaleDateString("en-ZA",{month:"short",day:"numeric",year:"numeric"}):"—";
-const LS={g:k=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch{return null}},s:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-
-function Av({s,z=36}){const bg=gc(s);return<div style={{width:z,height:z,borderRadius:"50%",background:bg+"22",border:`1px solid ${bg}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:z*.34,fontWeight:700,color:bg,fontFamily:"'Syne',sans-serif",flexShrink:0}}>{s||"?"}</div>}
-
-function Bdg({s}){
-  const m={
-    Active:{bg:"#dcfce7",c:"#166534",b:"#bbf7d0"},
-    "On Leave":{bg:"#fef9c3",c:"#854d0e",b:"#fef08a"},
-    Terminated:{bg:"#fee2e2",c:"#991b1b",b:"#fecaca"},
-    Probation:{bg:"#e0f2fe",c:"#075985",b:"#bae6fd"},
-    Pending:{bg:"#fef9c3",c:"#854d0e",b:"#fef08a"},
-    Approved:{bg:"#dcfce7",c:"#166534",b:"#bbf7d0"},
-    Rejected:{bg:"#fee2e2",c:"#991b1b",b:"#fecaca"},
-    Processed:{bg:"#f1f5f9",c:"#475569",b:"#e2e8f0"}
-  };
-  const x=m[s]||m.Active;
-  return<span style={{background:x.bg,color:x.c,border:`1px solid ${x.b}`,padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:600,letterSpacing:"0.02em",whiteSpace:"nowrap"}}>{s}</span>;
-}
-
-function Modal({open,onClose,onSubmit,title,children,w=560}){
-  if(!open)return null;
-  const Content = (
-    <div className="fade" style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:16,width:"100%",maxWidth:w,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 25px -5px rgba(0,0,0,0.1)"}} onClick={e=>e.stopPropagation()}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"20px 24px 0"}}>
-        <h3 className="brand-font" style={{fontSize:18,fontWeight:700,color:"#0f172a"}}>{title}</h3>
-        <button type="button" onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#64748b",padding:4,display:"flex",borderRadius:4}}><Svg d={IC.x} size={18}/></button>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"var(--bg)"}}>
+      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:20,padding:"40px 36px",width:"100%",maxWidth:400,boxShadow:"0 4px 24px rgba(0,0,0,0.06)"}}>
+        <div style={{marginBottom:28,textAlign:"center"}}>
+          <div style={{width:48,height:48,background:"var(--primary)",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M20 7H4a2 2 0 00-2 2v11a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+          </div>
+          <h1 style={{fontFamily:"Syne,sans-serif",fontSize:24,fontWeight:800,color:"var(--text-main)",marginBottom:4}}>Nimba People</h1>
+          <p style={{fontSize:13,color:"var(--text-muted)"}}>{mode==='login'?'Sign in to your account':'Create your account'}</p>
+        </div>
+        {err&&<div style={{background:"var(--danger-light)",color:"#b91c1c",borderRadius:8,padding:"10px 14px",fontSize:13,marginBottom:16}}>{err}</div>}
+        <div style={{marginBottom:14}}>
+          <label style={{display:"block",fontSize:12,fontWeight:600,color:"var(--text-muted)",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Email</label>
+          <input className="input" type="email" value={em} onChange={e=>setEm(e.target.value)} placeholder="you@company.co.za"/>
+        </div>
+        <div style={{marginBottom:20}}>
+          <label style={{display:"block",fontSize:12,fontWeight:600,color:"var(--text-muted)",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Password</label>
+          <input className="input" type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="••••••••" onKeyDown={e=>e.key==='Enter'&&submit()}/>
+        </div>
+        <button className="btn btn-primary" style={{width:"100%",padding:"11px"}} onClick={submit} disabled={loading}>
+          {loading?'Please wait…':mode==='login'?'Sign In':'Create Account'}
+        </button>
+        <p style={{textAlign:"center",fontSize:13,color:"var(--text-muted)",marginTop:16}}>
+          {mode==='login'?'No account? ':'Already have one? '}
+          <span style={{color:"var(--primary)",cursor:"pointer",fontWeight:600}} onClick={()=>{setMode(mode==='login'?'signup':'login');setErr('');}}>
+            {mode==='login'?'Sign up':'Sign in'}
+          </span>
+        </p>
       </div>
-      <div style={{padding:24}}>{children}</div>
     </div>
   );
-
-  return (
-    <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.4)",backdropFilter:"blur(4px)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick={onClose}>
-      {onSubmit ? <form onSubmit={(e)=>{e.preventDefault(); onSubmit();}} style={{width:"100%",display:"flex",justifyContent:"center"}}>{Content}</form> : Content}
-    </div>
-  );
-}
-
-const LB={display:"block",fontSize:12,fontWeight:600,color:"#475569",marginBottom:6};
-
-function FI({label,value,onChange,type="text",ph,req}){
-  return<div style={{marginBottom:16}}>
-    <label style={LB}>{label}{req&&<span style={{color:"#ef4444"}}> *</span>}</label>
-    <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={ph} className="input" required={req}/>
-  </div>;
-}
-function FS({label,value,onChange,opts}){
-  return<div style={{marginBottom:16}}>
-    <label style={LB}>{label}</label>
-    <div style={{position:"relative"}}>
-      <select value={value} onChange={e=>onChange(e.target.value)} className="input" style={{paddingRight:36,appearance:"none",cursor:"pointer"}}>
-        {opts.map(o=><option key={o}>{o}</option>)}
-      </select>
-      <span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",display:"flex"}}><Svg d={IC.cd} size={14} col="#64748b"/></span>
-    </div>
-  </div>;
 }
 
 function Stat({icon,label,value,sub,color="#4f46e5",trend}){
@@ -649,7 +600,7 @@ function App(){
     </div>
   );
 }
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+ReactDOM.createRoot(document.getElementById("root")).render(<AuthGate><App/></AuthGate>);
 </script>
 </body>
 </html>
