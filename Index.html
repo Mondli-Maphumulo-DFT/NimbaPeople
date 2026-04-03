@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>Nimba People – HR Management</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --primary: #1a3a5c;
+  --primary-hover: #122a44;
+  --primary-light: #e3edf6;
+  --gold: #c9a84c;
+  --gold-light: #fdf6e3;
+  --danger: #ef4444;
+  --danger-light: #fee2e2;
+  --success: #10b981;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body,#root{height:100%}
+body{background:var(--bg);font-family:'Inter',sans-serif;color:var(--text-main);-webkit-tap-highlight-color:transparent}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+
+@keyframes fi{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+.fade{animation:fi 0.3s ease forwards}
+.toast{animation:slideIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards}
+
+.brand-font{font-family:'Syne',sans-serif}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,0.02)}
+
+.input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text-main);font-size:15px;outline:none;transition:all 0.2s;font-family:'Inter',sans-serif;-webkit-appearance:none;appearance:none}
+.input:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
+.input::placeholder{color:var(--text-muted);opacity:0.6}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;border:none;transition:all 0.2s;font-family:'Inter',sans-serif;min-height:44px;-webkit-tap-highlight-color:transparent}
+.btn:active{transform:scale(0.97)}
+.btn-primary{background:var(--primary);color:#fff;box-shadow:0 2px 4px rgba(26,58,92,0.25)}
+.btn-primary:hover{background:var(--primary-hover)}
+.btn-ghost{background:transparent;color:var(--text-muted);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--bg);color:var(--text-main)}
+.btn-danger{background:var(--danger-light);color:#b91c1c;border:1px solid #fecaca}
+
+/* ── Tables (desktop only) ── */
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow-x:auto;box-shadow:0 1px 3px rgba(0,0,0,0.02)}
+table{width:100%;border-collapse:collapse;min-width:600px}
+th{text-align:left;padding:12px 16px;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:0.05em;text-transform:uppercase;border-bottom:1px solid var(--border);background:#f8fafc;white-space:nowrap}
+td{padding:14px 16px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;vertical-align:middle}
+.row:hover td{background:var(--bg);transition:0.2s}
+
+/* ── Sidebar (desktop) ── */
+.nav{display:flex;align-items:center;gap:10px;padding:10px 20px;cursor:pointer;color:var(--text-muted);font-size:13.5px;transition:all 0.2s;border-left:3px solid transparent;white-space:nowrap}
+.nav:hover{background:var(--bg);color:var(--text-main)}
+.nav.active{background:var(--primary-light);color:var(--primary);border-left-color:var(--primary);font-weight:600}
+
+/* ── Layout ── */
+.app-container{display:flex;min-height:100vh;flex-direction:row}
+aside{width:240px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;position:sticky;top:0;height:100vh}
+.main-content{padding:32px 36px 80px;max-width:1200px;margin:0 auto;width:100%}
+.grid-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
+
+/* ── Mobile card list items ── */
+.m-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.03)}
+.m-card:active{background:#f8fafc}
+.m-row{display:flex;align-items:center;gap:12px}
+.m-meta{font-size:12px;color:var(--text-muted);margin-top:3px}
+
+/* ── Bottom nav (mobile) ── */
+.bottom-nav{display:none}
+
+/* ── Mobile header ── */
+.mobile-header{display:none}
+
+/* ── Print ── */
+@media print{.no-print{display:none !important}}
+
+/* ═══════════════════════════════════════════════
+   MOBILE STYLES
+═══════════════════════════════════════════════ */
+@media (max-width:768px){
+
+  aside{display:none}
+
+  .mobile-header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:calc(12px + var(--safe-top)) 20px 12px;
+    background:var(--surface);border-bottom:1px solid var(--border);
+    position:sticky;top:0;z-index:100;
+  }
+  .mobile-header-title{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--text-main)}
+  .mobile-header-sub{font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase}
+
+  .bottom-nav{
+    display:flex;position:fixed;bottom:0;left:0;right:0;
+    background:var(--surface);border-top:1px solid var(--border);
+    padding:8px 0 calc(8px + var(--safe-bottom));
+    z-index:200;box-shadow:0 -4px 20px rgba(0,0,0,0.06);
+  }
+  .bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px;cursor:pointer;color:var(--text-muted);font-size:10px;font-weight:500;transition:color 0.2s;position:relative;-webkit-tap-highlight-color:transparent}
+  .bnav-item.active{color:var(--primary)}
+  .bnav-item.active svg{stroke:var(--primary)}
+  .bnav-badge{position:absolute;top:4px;right:calc(50% - 14px);background:var(--danger);color:#fff;border-radius:10px;font-size:9px;font-weight:700;padding:1px 5px;min-width:16px;text-align:center}
+
+  .main-content{padding:16px 16px calc(90px + var(--safe-bottom));max-width:100%}
+
+  /* Hide desktop tables on mobile */
+  .table-wrap{display:none}
+  /* Hide desktop grid-2 sections, show mobile cards */
+  .desktop-only{display:none !important}
+  .mobile-only{display:block !important}
+
+  .grid-cards{grid-template-columns:1fr 1fr;gap:12px}
+  .grid-2{grid-template-columns:1fr;gap:12px}
+  .modal-grid{grid-template-columns:1fr}
+
+  .card{padding:16px;border-radius:14px}
+
+  /* Full-screen modal on mobile */
+  .modal-overlay{align-items:flex-end !important;padding:0 !important}
+  .modal-box{border-radius:24px 24px 0 0 !important;max-height:92vh !important;width:100% !important;max-width:100% !important;padding:20px 20px calc(20px + var(--safe-bottom)) !important}
+  .modal-handle{width:40px;height:4px;background:var(--border);border-radius:4px;margin:0 auto 20px}
+
+  .stat-value{font-size:20px !important}
+  .stat-label{font-size:11px !important}
+
+  .page-header-row{flex-direction:column;gap:12px;align-items:flex-start !important}
+  .page-header-btn{width:100%}
+
+  /* Search bar full width */
+  .search-row{flex-direction:column;gap:10px}
+  .search-row>*{width:100% !important;min-width:0 !important;flex:none !important}
+}
+
+/* Tablet tweaks */
+@media (min-width:769px) and (max-width:1024px){
+  .main-content{padding:24px 24px 60px}
+  .grid-cards{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel" data-presets="react">
+const {useState,useEffect,useRef}=React;
+
+const {createClient}=supabase;
+const sb=createClient(
+  'https://tpnppkcknqzjamwkqugo.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwbnBwa2NrbnF6amFtd2txdWdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzExNzQsImV4cCI6MjA5MDQ0NzE3NH0.mQd7fMQle3lzr8ehKkOVwgzbTNoMoIkYwp8cqSFYR_k'
+);
+
+/* ── Auth Gate ─────────────────────────────── */
+function AuthGate({children}){
+  const[session,setSession]=useState(undefined);
+  useEffect(()=>{
+    sb.auth.getSession().then(({data})=>setSession(data.session));
+    const{data:{subscription}}=sb.auth.onAuthStateChange((_,s)=>setSession(s));
+    return()=>subscription.unsubscribe();
+  },[]);
+  if(session===undefined)return<Splash/>;
+  if(!session)return<LoginScreen/>;
+  return children;
+}
+
+function Splash(){
+  return<div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"var(--primary)"}}>
+    <div style={{width:56,height:56,background:"rgba(255,255,255,0.15)",borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><line x1="12" y1="12" x2="12" y2="12"/><path d="M2 12h20"/></svg>
+    </div>
+    <div style={{fontFamily:"Syne,sans-serif",fontSize:20,fontWeight:800,color:"#fff"}}>Nimba People</div>
+    <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginTop:4,letterSpacing:"0.1em"}}>LOADING…</div>
+  </div>;
+}
+
+function LoginScreen(){
+  const[em,setEm]=useState('');
+  const[pw,setPw]=useState('');
+  const[err,setErr]=useState('');
+  const[info,setInfo]=useState('');
+  const[loading,setLoading]=useState(false);
+  const[mode,setMode]=useState('login');
+
+  async function submit(){
+    setLoading(true);setErr('');setInfo('');
+    if(!em){setErr('Please enter your email.');setLoading(false);return;}
+    if(pw.length<6){setErr('Password must be at least 6 characters.');setLoading(false);return;}
+    if(mode==='login'){
+      const{error}=await sb.auth.signInWithPassword({email:em,password:pw});
+      if(error)setErr(error.message);
+    }else{
+      const{data,error}=await sb.auth.signUp({email:em,password:pw});
+      if(error)setErr(error.message);
+      else{
+        const{error:e2}=await sb.auth.signInWithPassword({email:em,password:pw});
+        if(e2){setInfo('Account created! Check your email to confirm, then sign in.');setMode('login');}
+      }
+    }
+    setLoading(false);
+  }
+
+  return<div style={{minHeight:"100vh",background:"var(--primary)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"20px 16px"}}>
+    {/* Logo */}
+    <div style={{marginBottom:32,textAlign:"center"}}>
+      <div style={{width:64,height:64,background:"rgba(255,255,255,0.12)",borderRadius:18,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",border:"1px solid rgba(255,255,255,0.2)"}}>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><path d="M2 12h20"/></svg>
+      </div>
+      <div style={{fontFamily:"Syne,sans-serif",fontSize:26,fontWeight:800,color:"#fff",letterSpacing:"-0.01em"}}>Nimba People</div>
+      <div style={{fontSize:11,color:"rgba(255,255,255,0.45)",marginTop:4,letterSpacing:"0.12em",textTransform:"uppercase"}}>by DithaNimba Holdings</div>
+    </div>
+
+    {/* Card */}
+    <div style={{background:"var(--surface)",borderRadius:24,padding:"28px 24px",width:"100%",maxWidth:400,boxShadow:"0 24px 64px rgba(0,0,0,0.3)"}}>
+      <h2 style={{fontFamily:"Syne,sans-serif",fontSize:20,fontWeight:800,marginBottom:4,color:"var(--text-main)"}}>{mode==='login'?'Welcome back':'Create account'}</h2>
+      <p style={{fontSize:13,color:"var(--text-muted)",marginBottom:24}}>{mode==='login'?'Sign in to your HR dashboard':'Register to get started'}</p>
+
+      {err&&<div style={{background:"var(--danger-light)",color:"#b91c1c",borderRadius:10,padding:"11px 14px",fontSize:13,marginBottom:16,display:"flex",gap:8,alignItems:"flex-start"}}><span>⚠️</span>{err}</div>}
+      {info&&<div style={{background:"#dcfce7",color:"#166534",borderRadius:10,padding:"11px 14px",fontSize:13,marginBottom:16}}>{info}</div>}
+
+      <div style={{marginBottom:14}}>
+        <label style={{display:"block",fontSize:12,fontWeight:600,color:"var(--text-muted)",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Email</label>
+        <input className="input" type="email" inputMode="email" autoComplete="email" value={em} onChange={e=>setEm(e.target.value)} placeholder="you@company.co.za"/>
+      </div>
+      <div style={{marginBottom:24}}>
+        <label style={{display:"block",fontSize:12,fontWeight:600,color:"var(--text-muted)",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Password</label>
+        <input className="input" type="password" autoComplete={mode==='login'?'current-password':'new-password'} value={pw} onChange={e=>setPw(e.target.value)} placeholder="••••••••" onKeyDown={e=>e.key==='Enter'&&submit()}/>
+        {mode==='signup'&&<p style={{fontSize:12,color:"var(--text-muted)",marginTop:6}}>Use at least 6 characters.</p>}
+      </div>
+      <button className="btn btn-primary" style={{width:"100%",fontSize:15,padding:"13px"}} onClick={submit} disabled={loading}>
+        {loading?'Please wait…':mode==='login'?'Sign In':'Create Account'}
+      </button>
+      <p style={{textAlign:"center",fontSize:13,color:"var(--text-muted)",marginTop:20}}>
+        {mode==='login'?'No account? ':'Already registered? '}
+        <span style={{color:"var(--primary)",cursor:"pointer",fontWeight:700}} onClick={()=>{setMode(mode==='login'?'signup':'login');setErr('');}}>
+          {mode==='login'?'Sign up':'Sign in'}
+        </span>
+      </p>
+    </div>
+  </div>;
+}
+
+/* ── Constants ──────────────────────────────── */
+const ROLES=['Junior','Mid-Level','Senior','Lead','Manager','Director'];
+const DEPTS=['Engineering','Sales','Marketing','Finance','HR','Operations','Legal','Design'];
+const STATS=['Active','Probation','On Leave','Terminated'];
+const LT=['Annual','Sick','Family Responsibility','Maternity','Paternity','Study','Unpaid'];
+const AC=['#6366f1','#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6'];
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const R=n=>'R '+n.toLocaleString('en-ZA');
+const D=s=>s?new Date(s).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}):'—';
+const LS={g:k=>{try{return JSON.parse(localStorage.getItem(k))}catch{return null}},s:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+
+const IC={
+  home:"M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10",
+  users:"M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75 M9 7a4 4 0 100 8 4 4 0 000-8z",
+  dollar:"M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6",
+  cal:"M19 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2z M16 2v4 M8 2v4 M3 10h18",
+  bar:"M18 20V10 M12 20V4 M6 20v-6",
+  ok:"M20 6L9 17l-5-5",
+  del:"M3 6h18 M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6 M10 11v6 M14 11v6 M9 6V4h6v2",
+  edit:"M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
+  mail:"M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6l-10 7L2 6",
+  ph:"M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z",
+  pin:"M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a1 1 0 100-2 1 1 0 000 2",
+  up:"M18 15l-6-6-6 6",dn:"M6 9l6 6 6-6",cd:"M19 9l-7 7-7-7",
+  chkCircle:"M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3",
+  logout:"M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4 M16 17l5-5-5-5 M21 12H9",
+  uadd:"M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2 M9 7a4 4 0 100 8 4 4 0 000-8 M19 8v6 M22 11h-6",
+  srch:"M21 21l-4.35-4.35 M17 11A6 6 0 105 11a6 6 0 0012 0z",
+  cr:"M9 18l6-6-6-6",
+  cc:"M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z M12 8v4 M12 16h.01",
+  plus:"M12 5v14 M5 12h14",
+  x:"M18 6L6 18 M6 6l12 12",
+  slip:"M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8",
+  cog:"M12 8a4 4 0 100 8 4 4 0 000-8z M12 2v2 M12 20v2 M4.93 4.93l1.41 1.41 M17.66 17.66l1.41 1.41 M2 12h2 M20 12h2 M6.34 17.66l-1.41 1.41 M19.07 4.93l-1.41 1.41",
+  more:"M12 5a1 1 0 100-2 1 1 0 000 2 M12 13a1 1 0 100-2 1 1 0 000 2 M12 21a1 1 0 100-2 1 1 0 000 2",
+  bag:"M20 7H4a2 2 0 00-2 2v11a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2",
+};
+
+/* ── Seed Data ──────────────────────────────── */
+const SE=[
+  {id:"e1",name:"Thabo Dlamini",role:"Senior",dept:"Engineering",sal:650000,st:"Active",em:"thabo@nimba.co.za",ph:"+27 11 555 0101",loc:"Johannesburg",jd:"2021-03-15",av:"TD"},
+  {id:"e2",name:"Naledi Mokoena",role:"Manager",dept:"HR",sal:720000,st:"Active",em:"naledi@nimba.co.za",ph:"+27 11 555 0102",loc:"Pretoria",jd:"2019-07-01",av:"NM"},
+  {id:"e3",name:"Sipho Nkosi",role:"Mid-Level",dept:"Sales",sal:420000,st:"Probation",em:"sipho@nimba.co.za",ph:"+27 11 555 0103",loc:"Durban",jd:"2024-01-10",av:"SN"},
+  {id:"e4",name:"Zanele Khumalo",role:"Lead",dept:"Finance",sal:780000,st:"Active",em:"zanele@nimba.co.za",ph:"+27 11 555 0104",loc:"Cape Town",jd:"2020-05-20",av:"ZK"},
+  {id:"e5",name:"Bongani Zulu",role:"Junior",dept:"Marketing",sal:320000,st:"On Leave",em:"bongani@nimba.co.za",ph:"+27 11 555 0105",loc:"Johannesburg",jd:"2023-09-01",av:"BZ"},
+];
+const SL=[
+  {id:"l1",eid:"e3",type:"Annual",fr:"2025-02-10",to:"2025-02-14",rs:"Family holiday",st:"Approved"},
+  {id:"l2",eid:"e5",type:"Sick",fr:"2025-03-03",to:"2025-03-05",rs:"Medical",st:"Approved"},
+  {id:"l3",eid:"e1",type:"Study",fr:"2025-04-07",to:"2025-04-11",rs:"Certification exam",st:"Pending"},
+];
+const SP=[
+  {id:"p1",pd:"March 2025",dt:"2025-03-31",tot:247917,cnt:4,st:"Processed"},
+  {id:"p2",pd:"February 2025",dt:"2025-02-28",tot:247917,cnt:4,st:"Processed"},
+];
+
+/* ── Tax / Payslip ──────────────────────────── */
+function calcSlip(sal){
+  const gross=Math.round(sal/12);
+  const uif=Math.min(Math.round(gross*0.01),177);
+  let at=0;
+  if(sal<=237100)at=sal*0.18;
+  else if(sal<=370500)at=42678+(sal-237100)*0.26;
+  else if(sal<=512800)at=77362+(sal-370500)*0.31;
+  else if(sal<=673000)at=121475+(sal-512800)*0.36;
+  else if(sal<=857900)at=179147+(sal-673000)*0.39;
+  else if(sal<=1817000)at=251258+(sal-857900)*0.41;
+  else at=644489+(sal-1817000)*0.45;
+  at=Math.max(0,at-17235);
+  const paye=Math.round(at/12);
+  return{gross,uif,paye,net:gross-uif-paye};
+}
+
+function genPayslipPDF(emp,periodStr,slip){
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const W=210,M=18;let y=0;
+  doc.setFillColor(26,58,92);doc.rect(0,0,W,42,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(18);doc.setTextColor(255,255,255);doc.text('NIMBA PEOPLE',M,18);
+  doc.setFontSize(9);doc.setTextColor(201,168,76);doc.text('by DithaNimba Holdings',M,26);
+  doc.setFontSize(13);doc.setTextColor(255,255,255);doc.text('PAYSLIP',W-M,16,{align:'right'});
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(200,220,240);doc.text(periodStr,W-M,24,{align:'right'});
+  y=52;
+  doc.setFillColor(248,250,252);doc.setDrawColor(226,232,240);doc.roundedRect(M,y,W-2*M,30,3,3,'FD');
+  doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(15,23,42);doc.text(emp.name,M+5,y+11);
+  doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(100,116,139);
+  doc.text(`${emp.role}  ·  ${emp.dept}`,M+5,y+19);doc.text(emp.em,M+5,y+26);
+  y+=40;
+  doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(22,163,74);doc.text('EARNINGS',M,y);y+=5;
+  doc.setDrawColor(187,247,208);doc.line(M,y,W-M,y);y+=7;
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(51,65,85);
+  doc.text('Basic Salary',M+2,y);doc.text('R '+slip.gross.toLocaleString('en-ZA'),W-M-2,y,{align:'right'});y+=7;
+  doc.setFillColor(240,253,244);doc.rect(M,y,W-2*M,10,'F');
+  doc.setFont('helvetica','bold');doc.setTextColor(15,23,42);doc.text('Gross Earnings',M+2,y+7);
+  doc.setTextColor(22,163,74);doc.text('R '+slip.gross.toLocaleString('en-ZA'),W-M-2,y+7,{align:'right'});y+=20;
+  doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(220,38,38);doc.text('DEDUCTIONS',M,y);y+=5;
+  doc.setDrawColor(254,202,202);doc.line(M,y,W-M,y);y+=7;
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(100,116,139);
+  doc.text('PAYE (Income Tax — 2024/25)',M+2,y);doc.setTextColor(220,38,38);doc.text('- R '+slip.paye.toLocaleString('en-ZA'),W-M-2,y,{align:'right'});y+=7;
+  doc.setTextColor(100,116,139);doc.text('UIF Contribution (1%, max R177)',M+2,y);doc.setTextColor(220,38,38);doc.text('- R '+slip.uif.toLocaleString('en-ZA'),W-M-2,y,{align:'right'});y+=7;
+  doc.setFillColor(254,242,242);doc.rect(M,y,W-2*M,10,'F');
+  doc.setFont('helvetica','bold');doc.setTextColor(185,28,28);doc.text('Total Deductions',M+2,y+7);doc.text('- R '+(slip.paye+slip.uif).toLocaleString('en-ZA'),W-M-2,y+7,{align:'right'});y+=22;
+  doc.setFillColor(26,58,92);doc.roundedRect(M,y,W-2*M,18,3,3,'F');
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(200,220,240);doc.text('NET PAY',M+5,y+7);
+  doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(255,255,255);doc.text('R '+slip.net.toLocaleString('en-ZA'),M+5,y+14);
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(201,168,76);doc.text(periodStr,W-M-5,y+11,{align:'right'});y+=30;
+  doc.setDrawColor(226,232,240);doc.line(M,y,W-M,y);y+=5;
+  doc.setTextColor(148,163,184);doc.setFontSize(8);
+  doc.text('PAYE is an estimate based on 2024/25 South African income tax tables. Confidential.',M,y);
+  doc.text(`Generated ${new Date().toLocaleDateString('en-ZA')}  ·  Nimba People HR System`,M,y+5);
+  doc.save(`payslip-${emp.name.replace(/ /g,'-')}-${periodStr.replace(/ /g,'-')}.pdf`);
+}
+
+/* ── Small Components ──────────────────────── */
+function Svg({d,size=20,col="currentColor"}){
+  const paths=d.split(" M ").map((p,i)=>i===0?p:"M "+p);
+  return<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
+    {paths.map((p,i)=><path key={i} d={p}/>)}
+  </svg>;
+}
+function Av({s,z=40}){
+  const colors=["#1a3a5c","#0ea5e9","#10b981","#8b5cf6","#f59e0b","#ef4444"];
+  const c=colors[(s?.charCodeAt(0)||0)%colors.length];
+  return<div style={{width:z,height:z,borderRadius:"50%",background:c,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:z*0.35,flexShrink:0,fontFamily:"Syne,sans-serif"}}>{s||"?"}</div>;
+}
+function Bdg({s}){
+  const m={Active:["#dcfce7","#16a34a"],Probation:["#fef9c3","#ca8a04"],"On Leave":["#dbeafe","#2563eb"],Terminated:["#fee2e2","#dc2626"],Pending:["#fef9c3","#ca8a04"],Approved:["#dcfce7","#16a34a"],Rejected:["#fee2e2","#dc2626"],Processed:["#dcfce7","#16a34a"]};
+  const[bg,col]=m[s]||["#f1f5f9","#475569"];
+  return<span style={{background:bg,color:col,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{s}</span>;
+}
+const LB={display:"block",fontSize:12,fontWeight:600,color:"var(--text-muted)",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"};
+function FI({label,value,onChange,type="text",req,ph}){
+  return<div style={{marginBottom:16}}>
+    <label style={LB}>{label}{req&&<span style={{color:"#ef4444"}}> *</span>}</label>
+    <input className="input" type={type} inputMode={type==="number"?"numeric":type==="email"?"email":type==="tel"?"tel":undefined} value={value} onChange={e=>onChange(e.target.value)} placeholder={ph||""} required={req}/>
+  </div>;
+}
+function FS({label,value,onChange,opts}){
+  return<div style={{marginBottom:16}}>
+    <label style={LB}>{label}</label>
+    <div style={{position:"relative"}}>
+      <select className="input" value={value} onChange={e=>onChange(e.target.value)} style={{paddingRight:36,appearance:"none",cursor:"pointer"}}>
+        {opts.map(o=><option key={o} value={o}>{o}</option>)}
+      </select>
+      <span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",display:"flex"}}><Svg d={IC.cd} size={14} col="#64748b"/></span>
+    </div>
+  </div>;
+}
+function Modal({open,onClose,onSubmit,title,children,w=500}){
+  if(!open)return null;
+  return<div className="modal-overlay" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal-box" style={{background:"var(--surface)",borderRadius:20,padding:28,width:"100%",maxWidth:w,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.15)"}}>
+      <div className="modal-handle" style={{display:"none"}}/>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:22}}>
+        <h2 className="brand-font" style={{fontSize:19,fontWeight:800}}>{title}</h2>
+        <button className="btn btn-ghost" style={{padding:"6px 10px",minHeight:36}} onClick={onClose}><Svg d={IC.x} size={16}/></button>
+      </div>
+      <form onSubmit={e=>{e.preventDefault();onSubmit&&onSubmit()}}>{children}</form>
+    </div>
+  </div>;
+}
+function Stat({icon,label,value,sub,color="#4f46e5",trend}){
+  return<div className="card" style={{position:"relative",overflow:"hidden"}}>
+    <div style={{position:"absolute",top:0,right:0,width:80,height:80,background:`radial-gradient(circle at 100% 0%,${color}18 0%,transparent 70%)`}}/>
+    <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:12}}>
+      <div style={{width:36,height:36,borderRadius:9,background:`${color}18`,display:"flex",alignItems:"center",justifyContent:"center"}}><Svg d={IC[icon]} size={16} col={color}/></div>
+      {trend!==undefined&&<div style={{display:"flex",alignItems:"center",gap:3,fontSize:11,fontWeight:600,color:trend>=0?"#10b981":"#ef4444"}}><Svg d={trend>=0?IC.up:IC.dn} size={11} col={trend>=0?"#10b981":"#ef4444"}/>{Math.abs(trend)}%</div>}
+    </div>
+    <div className="brand-font stat-value" style={{fontSize:22,fontWeight:800,color:"#0f172a",lineHeight:1,marginBottom:4}}>{value}</div>
+    <div className="stat-label" style={{fontSize:12,color:"#64748b",fontWeight:500}}>{label}</div>
+    {sub&&<div style={{fontSize:11,color,marginTop:3,fontWeight:500}}>{sub}</div>}
+  </div>;
+}
+
+/* ── Payslip Viewer ─────────────────────────── */
+function PayslipViewer({emp,period,onClose}){
+  const slip=calcSlip(emp.sal);
+  const periodStr=`${MONTHS[period.m]} ${period.y}`;
+  return<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:1000,padding:0}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{background:"var(--surface)",borderRadius:"24px 24px 0 0",width:"100%",maxWidth:580,maxHeight:"92vh",overflowY:"auto",boxShadow:"0 -8px 40px rgba(0,0,0,0.2)"}}>
+      <div style={{width:40,height:4,background:"var(--border)",borderRadius:4,margin:"12px auto 0"}}/>
+      <div style={{background:"var(--primary)",padding:"18px 24px 22px",margin:"12px 16px 0",borderRadius:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div><div className="brand-font" style={{color:"#fff",fontSize:16,fontWeight:800}}>NIMBA PEOPLE</div>
+          <div style={{color:"var(--gold)",fontSize:9,letterSpacing:"0.1em",marginTop:1}}>by DithaNimba Holdings</div></div>
+          <div style={{textAlign:"right"}}><div style={{color:"#fff",fontSize:12,fontWeight:700,letterSpacing:"0.1em"}}>PAYSLIP</div>
+          <div style={{color:"rgba(255,255,255,0.6)",fontSize:11,marginTop:2}}>{periodStr}</div></div>
+        </div>
+      </div>
+      <div style={{padding:"16px 16px 24px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:14,padding:14,background:"var(--bg)",borderRadius:12,border:"1px solid var(--border)",marginBottom:20}}>
+          <Av s={emp.av} z={46}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div className="brand-font" style={{fontSize:15,fontWeight:800}}>{emp.name}</div>
+            <div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>{emp.role} · {emp.dept}</div>
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+          <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:12,padding:14}}>
+            <div style={{fontSize:10,fontWeight:700,color:"#16a34a",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Gross Pay</div>
+            <div className="brand-font" style={{fontSize:20,fontWeight:800,color:"#16a34a"}}>{R(slip.gross)}</div>
+          </div>
+          <div style={{background:"#fff5f5",border:"1px solid #fecaca",borderRadius:12,padding:14}}>
+            <div style={{fontSize:10,fontWeight:700,color:"#dc2626",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Deductions</div>
+            <div className="brand-font" style={{fontSize:20,fontWeight:800,color:"#dc2626"}}>-{R(slip.paye+slip.uif)}</div>
+          </div>
+        </div>
+        <div style={{background:"var(--bg)",borderRadius:12,padding:14,border:"1px solid var(--border)",marginBottom:16}}>
+          {[["PAYE (est.)",slip.paye,true],["UIF (1%)",slip.uif,true]].map(([l,v,ded])=><div key={l} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--border)"}}>
+            <span style={{fontSize:13,color:"var(--text-muted)"}}>{l}</span>
+            <span style={{fontSize:13,fontWeight:600,color:ded?"#dc2626":"#16a34a"}}>{ded?"-":""}{R(v)}</span>
+          </div>)}
+        </div>
+        <div style={{background:"var(--primary)",borderRadius:12,padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div><div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontWeight:600,letterSpacing:"0.08em",marginBottom:4}}>NET PAY</div>
+          <div className="brand-font" style={{fontSize:26,fontWeight:800,color:"#fff"}}>{R(slip.net)}</div></div>
+          <div style={{color:"var(--gold)",fontWeight:700,fontSize:13}}>{periodStr}</div>
+        </div>
+        <div style={{fontSize:11,color:"var(--text-muted)",textAlign:"center",marginBottom:20,lineHeight:1.5}}>PAYE is estimated based on 2024/25 SA tax tables. Confidential.</div>
+        <div style={{display:"flex",gap:10}}>
+          <button className="btn btn-ghost" style={{flex:1}} onClick={onClose}>Close</button>
+          <button className="btn btn-primary" style={{flex:1}} onClick={()=>genPayslipPDF(emp,periodStr,slip)}><Svg d={IC.slip} size={14}/> Download PDF</button>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ── Mobile Employee Card ────────────────────── */
+function EmpCard({e,onTap,onEdit,onDelete}){
+  return<div className="m-card" onClick={()=>onTap(e)}>
+    <div className="m-row">
+      <Av s={e.av} z={44}/>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontWeight:600,color:"var(--text-main)",fontSize:14}}>{e.name}</div>
+        <div className="m-meta">{e.role} · {e.dept}</div>
+        <div style={{marginTop:5}}><Bdg s={e.st}/></div>
+      </div>
+      <div style={{textAlign:"right",flexShrink:0}}>
+        <div style={{fontWeight:700,fontSize:13,color:"var(--primary)"}}>{R(Math.round(e.sal/12))}</div>
+        <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>/ month</div>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ── Mobile Leave Card ──────────────────────── */
+function LeaveCard({l,emp,onApprove,onReject}){
+  return<div className="m-card">
+    <div className="m-row" style={{marginBottom:l.st==="Pending"?12:0}}>
+      <Av s={emp?.av||"??"} z={38}/>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontWeight:600,fontSize:13}}>{emp?.name||"Unknown"}</div>
+        <div className="m-meta">{l.type} · {D(l.fr)} → {D(l.to)}</div>
+      </div>
+      <Bdg s={l.st}/>
+    </div>
+    {l.st==="Pending"&&<div style={{display:"flex",gap:8}}>
+      <button className="btn btn-primary" style={{flex:1,minHeight:40,fontSize:13}} onClick={()=>onApprove(l.id)}>
+        <Svg d={IC.ok} size={14}/> Approve
+      </button>
+      <button className="btn btn-danger" style={{flex:1,minHeight:40,fontSize:13}} onClick={()=>onReject(l.id)}>
+        <Svg d={IC.x} size={14}/> Reject
+      </button>
+    </div>}
+  </div>;
+}
+
+/* ── Hook: is mobile ────────────────────────── */
+function useIsMobile(){
+  const[m,setM]=useState(()=>window.innerWidth<=768);
+  useEffect(()=>{
+    const h=()=>setM(window.innerWidth<=768);
+    window.addEventListener('resize',h);return()=>window.removeEventListener('resize',h);
+  },[]);
+  return m;
+}
+
+/* ── Main App ───────────────────────────────── */
+function App(){
+  const[tab,setTab]=useState("dashboard");
+  const[emps,setEmps]=useState([]);
+  const[lvs,setLvs]=useState([]);
+  const[pay,setPay]=useState([]);
+  const[rdy,setRdy]=useState(false);
+  const isMobile=useIsMobile();
+
+  const[toast,setToast]=useState(null);
+  const showToast=(msg,ok=true)=>{setToast({msg,ok});setTimeout(()=>setToast(null),3500)};
+
+  const[em,setEm]=useState(false);
+  const[ed,setEd]=useState(null);
+  const[ef,setEf]=useState({name:"",role:ROLES[2],dept:DEPTS[0],sal:"",st:STATS[0],em2:"",ph:"",loc:"",jd:""});
+  const[lm,setLm]=useState(false);
+  const[lf,setLf]=useState({eid:"",type:LT[0],fr:"",to:"",rs:""});
+  const[pm,setPm]=useState(false);
+  const[vw,setVw]=useState(null);
+  const[srch,setSrch]=useState("");
+  const[df,setDf]=useState("All");
+  const[sf,setSf]=useState("All");
+  const[sm,setSm]=useState(false);
+  const[cfgF,setCfgF]=useState({key:"",from:"",hr:""});
+  const[cfg,setCfg]=useState({key:"",from:"",hr:""});
+  const now=new Date();
+  const[psm,setPsm]=useState(null);
+  const[psPeriod,setPsPeriod]=useState({m:now.getMonth(),y:now.getFullYear()});
+  const yearOpts=[...Array(5)].map((_,i)=>now.getFullYear()-i);
+
+  useEffect(()=>{
+    setEmps(LS.g("hr-e")||SE);
+    setLvs(LS.g("hr-l")||SL);
+    setPay(LS.g("hr-p")||SP);
+    const c={key:LS.g("hr-cfg-key")||"",from:LS.g("hr-cfg-from")||"",hr:LS.g("hr-cfg-hr")||""};
+    setCfg(c);setCfgF(c);setRdy(true);
+  },[]);
+
+  function saveCfg(){LS.s("hr-cfg-key",cfgF.key);LS.s("hr-cfg-from",cfgF.from);LS.s("hr-cfg-hr",cfgF.hr);setCfg({...cfgF});setSm(false);showToast("Settings saved");}
+  const sv=(e,l,p)=>{LS.s("hr-e",e);LS.s("hr-l",l);LS.s("hr-p",p)};
+  const EF0=()=>({name:"",role:ROLES[2],dept:DEPTS[0],sal:"",st:STATS[0],em2:"",ph:"",loc:"",jd:new Date().toISOString().split("T")[0]});
+  function addE(){setEd(null);setEf(EF0());setEm(true)}
+  function edE(e){setEd(e);setEf({name:e.name,role:e.role,dept:e.dept,sal:e.sal,st:e.st,em2:e.em,ph:e.ph,loc:e.loc,jd:e.jd});setEm(true);setVw(null)}
+  function svE(){
+    if(!ef.name||!ef.em2)return;
+    const av=ef.name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+    const n=ed?emps.map(e=>e.id===ed.id?{...e,...ef,sal:+ef.sal,em:ef.em2,av}:e):[...emps,{...ef,id:"e"+Date.now(),sal:+ef.sal,em:ef.em2,av}];
+    setEmps(n);sv(n,lvs,pay);setEm(false);showToast(ed?"Employee updated":"Employee added");
+  }
+  function dlE(id){const n=emps.filter(e=>e.id!==id);setEmps(n);sv(n,lvs,pay);if(vw?.id===id)setVw(null);showToast("Employee deleted");}
+  function sbL(){
+    if(!lf.eid||!lf.fr||!lf.to)return;
+    const nl={...lf,id:"l"+Date.now(),st:"Pending"};
+    const n=[...lvs,nl];setLvs(n);sv(emps,n,pay);setLm(false);setLf({eid:"",type:LT[0],fr:"",to:"",rs:""});showToast("Leave request submitted");
+  }
+  function upL(id,st){const n=lvs.map(l=>l.id===id?{...l,st}:l);setLvs(n);sv(emps,n,pay);showToast(`Leave ${st.toLowerCase()}`);}
+  function rnP(){
+    const act=emps.filter(e=>e.st==="Active"||e.st==="Probation");
+    const tot=act.reduce((s,e)=>s+(e.sal/12),0);
+    const r={id:"p"+Date.now(),pd:new Date().toLocaleDateString("en-ZA",{month:"long",year:"numeric"}),dt:new Date().toISOString().split("T")[0],tot:Math.round(tot),cnt:act.length,st:"Processed"};
+    const n=[r,...pay];setPay(n);sv(emps,lvs,n);setPm(false);showToast("Payroll processed");
+  }
+
+  const tsal=emps.filter(e=>e.st==="Active"||e.st==="Probation").reduce((s,e)=>s+e.sal,0);
+  const acnt=emps.filter(e=>e.st==="Active").length;
+  const olv=emps.filter(e=>e.st==="On Leave").length;
+  const plv=lvs.filter(l=>l.st==="Pending").length;
+  const filt=emps.filter(e=>{const q=srch.toLowerCase();return(!q||e.name.toLowerCase().includes(q)||e.em.toLowerCase().includes(q)||e.dept.toLowerCase().includes(q))&&(df==="All"||e.dept===df)&&(sf==="All"||e.st===sf)});
+  const dbk=DEPTS.map(d=>({d,n:emps.filter(e=>e.dept===d).length})).filter(x=>x.n>0).sort((a,b)=>b.n-a.n);
+  if(!rdy)return<Splash/>;
+
+  const NAVS=[["dashboard","home","Home"],["employees","users","Staff"],["payroll","dollar","Payroll"],["leaves","cal","Leave"],["payslips","slip","Payslips"]];
+
+  /* Page titles for mobile header */
+  const PAGE_TITLE={dashboard:"Good day 👋",employees:"Employees",payroll:"Payroll",leaves:"Leave",payslips:"Payslips",analytics:"Analytics"};
+
+  return<div className="app-container">
+    {toast&&<div className="toast" style={{position:"fixed",bottom:isMobile?90:24,right:16,left:isMobile?16:"auto",background:"#0f172a",color:"#fff",padding:"13px 18px",borderRadius:10,fontSize:13,fontWeight:500,boxShadow:"0 10px 30px rgba(0,0,0,0.2)",zIndex:9999,display:"flex",alignItems:"center",gap:10}}>
+      <Svg d={IC.chkCircle} size={17} col="#10b981"/> {toast.msg}
+    </div>}
+
+    {/* ── Desktop sidebar ── */}
+    <aside>
+      <header style={{padding:"24px 20px 20px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:34,height:34,background:"var(--primary)",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><path d="M2 12h20"/></svg>
+          </div>
+          <div>
+            <span className="brand-font" style={{fontSize:16,fontWeight:800,color:"var(--text-main)",display:"block",lineHeight:1.1}}>Nimba People</span>
+            <div style={{fontSize:9,color:"var(--text-muted)",letterSpacing:"0.1em",fontWeight:600,textTransform:"uppercase"}}>by DithaNimba Holdings</div>
+          </div>
+        </div>
+      </header>
+      <nav style={{flex:1}}>
+        {[...NAVS,["analytics","bar","Analytics"]].map(([id,ic,lbl])=>(
+          <div key={id} className={`nav ${tab===id?"active":""}`} onClick={()=>setTab(id)}>
+            <Svg d={IC[ic]} size={15} col={tab===id?"currentColor":"#64748b"}/> {lbl}
+            {id==="leaves"&&plv>0&&<span style={{marginLeft:"auto",background:"var(--danger)",color:"#fff",borderRadius:12,fontSize:10,fontWeight:700,padding:"2px 7px"}}>{plv}</span>}
+          </div>
+        ))}
+      </nav>
+      <div style={{padding:"14px 16px",borderTop:"1px solid var(--border)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+          <Av s="AD" z={32}/><div><div style={{fontSize:13,fontWeight:600}}>Admin</div><div style={{fontSize:11,color:"var(--text-muted)"}}>HR Manager</div></div>
+        </div>
+        <button className="btn btn-ghost" style={{width:"100%",justifyContent:"flex-start",gap:8,padding:"8px 10px",fontSize:12,marginBottom:6}} onClick={()=>{setCfgF({...cfg});setSm(true)}}><Svg d={IC.cog} size={14} col="#64748b"/> Email Settings</button>
+        <button className="btn btn-ghost" style={{width:"100%",justifyContent:"flex-start",gap:8,padding:"8px 10px",fontSize:12}} onClick={()=>sb.auth.signOut()}><Svg d={IC.logout} size={14} col="#64748b"/> Sign Out</button>
+      </div>
+    </aside>
+
+    {/* ── Mobile header ── */}
+    <div className="mobile-header">
+      <div>
+        <div className="mobile-header-title">{PAGE_TITLE[tab]}</div>
+        <div className="mobile-header-sub">Nimba People</div>
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        {tab==="employees"&&<button className="btn btn-primary" style={{padding:"8px 14px",fontSize:12,minHeight:36}} onClick={addE}><Svg d={IC.plus} size={15}/></button>}
+        {tab==="leaves"&&<button className="btn btn-primary" style={{padding:"8px 14px",fontSize:12,minHeight:36}} onClick={()=>setLm(true)}><Svg d={IC.plus} size={15}/></button>}
+        {tab==="payroll"&&<button className="btn btn-primary" style={{padding:"8px 14px",fontSize:12,minHeight:36}} onClick={()=>setPm(true)}><Svg d={IC.cc} size={15}/></button>}
+        <button className="btn btn-ghost" style={{padding:"8px 10px",minHeight:36}} onClick={()=>{setCfgF({...cfg});setSm(true)}}><Svg d={IC.cog} size={17}/></button>
+        <button className="btn btn-ghost" style={{padding:"8px 10px",minHeight:36}} onClick={()=>sb.auth.signOut()}><Svg d={IC.logout} size={17}/></button>
+      </div>
+    </div>
+
+    {/* ── Main content ── */}
+    <main style={{flex:1,overflowY:"auto"}}>
+      <div className="fade main-content">
+
+        {/* ── DASHBOARD ── */}
+        {tab==="dashboard"&&<section>
+          <header className="desktop-only" style={{marginBottom:28}}>
+            <h1 className="brand-font" style={{fontSize:26,fontWeight:800,marginBottom:4}}>Good day 👋</h1>
+            <p style={{fontSize:14,color:"var(--text-muted)"}}>Here's your team overview for today.</p>
+          </header>
+          <div className="grid-cards" style={{marginBottom:24}}>
+            <Stat icon="users" label="Total Employees" value={emps.length} sub={`${acnt} active`} color="#4f46e5" trend={4}/>
+            <Stat icon="dollar" label="Annual Payroll" value={R(tsal)} sub="Active employees" color="#10b981" trend={2}/>
+            <Stat icon="cal" label="On Leave" value={olv} sub={`${plv} pending`} color="#f59e0b"/>
+            <Stat icon="bar" label="Avg Monthly" value={R(acnt?Math.round(tsal/12/acnt):0)} sub="Per employee" color="#0ea5e9" trend={1}/>
+          </div>
+          <div className="grid-2">
+            <div className="card">
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                <h3 className="brand-font" style={{fontSize:15,fontWeight:700}}>Team Members</h3>
+                <button className="btn btn-ghost" style={{padding:"6px 12px",fontSize:12,minHeight:34}} onClick={()=>setTab("employees")}>View all <Svg d={IC.cr} size={13}/></button>
+              </div>
+              {emps.slice(0,4).map(e=><div key={e.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid var(--border)"}} onClick={()=>setVw(e)}>
+                <Av s={e.av} z={36}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600}}>{e.name}</div><div style={{fontSize:11,color:"var(--text-muted)",marginTop:2}}>{e.role} · {e.dept}</div></div><Bdg s={e.st}/>
+              </div>)}
+            </div>
+            <div className="card">
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                <h3 className="brand-font" style={{fontSize:15,fontWeight:700}}>Leave Requests</h3>
+                <button className="btn btn-ghost" style={{padding:"6px 12px",fontSize:12,minHeight:34}} onClick={()=>setTab("leaves")}>View all <Svg d={IC.cr} size={13}/></button>
+              </div>
+              {lvs.filter(l=>l.st==="Pending").length===0
+                ?<div style={{textAlign:"center",color:"var(--text-muted)",padding:"24px 0",fontSize:13}}>No pending requests</div>
+                :lvs.filter(l=>l.st==="Pending").slice(0,3).map(l=>{
+                  const e=emps.find(x=>x.id===l.eid);
+                  return<div key={l.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:"1px solid var(--border)"}}>
+                    <Av s={e?.av||"??"} z={34}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600}}>{e?.name}</div><div style={{fontSize:11,color:"var(--text-muted)",marginTop:2}}>{l.type} · {D(l.fr)}</div></div>
+                    <div style={{display:"flex",gap:6}}>
+                      <button style={{background:"#dcfce7",border:"none",borderRadius:7,padding:"7px",cursor:"pointer",color:"#166534",display:"flex",minWidth:32,minHeight:32,alignItems:"center",justifyContent:"center"}} onClick={()=>upL(l.id,"Approved")}><Svg d={IC.ok} size={13}/></button>
+                      <button style={{background:"#fee2e2",border:"none",borderRadius:7,padding:"7px",cursor:"pointer",color:"#991b1b",display:"flex",minWidth:32,minHeight:32,alignItems:"center",justifyContent:"center"}} onClick={()=>upL(l.id,"Rejected")}><Svg d={IC.x} size={13}/></button>
+                    </div>
+                  </div>;
+                })
+              }
+            </div>
+          </div>
+        </section>}
+
+        {/* ── EMPLOYEES ── */}
+        {tab==="employees"&&<section>
+          <header style={{display:"flex",flexWrap:"wrap",gap:14,alignItems:"flex-start",justifyContent:"space-between",marginBottom:20}} className="desktop-only">
+            <div><h1 className="brand-font" style={{fontSize:24,fontWeight:800,marginBottom:4}}>Employees</h1><p style={{fontSize:13,color:"var(--text-muted)"}}>{emps.length} members · {new Set(emps.map(e=>e.dept)).size} departments</p></div>
+            <button className="btn btn-primary" onClick={addE}><Svg d={IC.uadd} size={15}/> Add Employee</button>
+          </header>
+          <div className="search-row" style={{display:"flex",gap:12,marginBottom:20,flexWrap:"wrap"}}>
+            <div style={{position:"relative",flex:1,minWidth:200}}>
+              <span style={{position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",display:"flex"}}><Svg d={IC.srch} size={15} col="var(--text-muted)"/></span>
+              <input className="input" value={srch} onChange={e=>setSrch(e.target.value)} placeholder="Search…" style={{paddingLeft:38}}/>
+            </div>
+            {[[df,setDf,["All",...DEPTS]],[sf,setSf,["All",...STATS]]].map(([v,set,opts],i)=>(
+              <div key={i} style={{position:"relative",minWidth:130}}>
+                <select className="input" value={v} onChange={e=>set(e.target.value)} style={{paddingRight:32,appearance:"none",cursor:"pointer",fontSize:13}}>
+                  {opts.map(o=><option key={o}>{o}</option>)}
+                </select>
+                <span style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",display:"flex"}}><Svg d={IC.cd} size={13} col="var(--text-muted)"/></span>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="table-wrap desktop-only">
+            <table>
+              <thead><tr>{["Employee","Department","Role","Annual Salary","Status","Joined",""].map(h=><th key={h}>{h}</th>)}</tr></thead>
+              <tbody>
+                {filt.length===0&&<tr><td colSpan={7} style={{textAlign:"center",color:"var(--text-muted)",padding:50}}>No employees found</td></tr>}
+                {filt.map(e=><tr key={e.id} className="row" style={{cursor:"pointer"}} onClick={()=>setVw(e)}>
+                  <td><div style={{display:"flex",alignItems:"center",gap:12}}><Av s={e.av}/><div><div style={{fontWeight:600}}>{e.name}</div><div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>{e.em}</div></div></div></td>
+                  <td>{e.dept}</td><td>{e.role}</td>
+                  <td style={{fontWeight:600}}>{R(e.sal)}</td>
+                  <td><Bdg s={e.st}/></td><td>{D(e.jd)}</td>
+                  <td onClick={ev=>ev.stopPropagation()}><div style={{display:"flex",gap:8}}>
+                    <button className="btn btn-ghost" style={{padding:"6px 10px"}} onClick={()=>edE(e)}><Svg d={IC.edit} size={13}/></button>
+                    <button className="btn btn-ghost" style={{padding:"6px 10px",color:"#ef4444",borderColor:"#fecaca"}} onClick={()=>dlE(e.id)}><Svg d={IC.del} size={13}/></button>
+                  </div></td>
+                </tr>)}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile cards */}
+          <div className="mobile-only" style={{display:"none"}}>
+            {filt.length===0&&<div style={{textAlign:"center",color:"var(--text-muted)",padding:"40px 0",fontSize:13}}>No employees found</div>}
+            {filt.map(e=><EmpCard key={e.id} e={e} onTap={setVw} onEdit={edE} onDelete={dlE}/>)}
+          </div>
+        </section>}
+
+        {/* ── PAYROLL ── */}
+        {tab==="payroll"&&<section>
+          <header className="desktop-only" style={{display:"flex",gap:14,alignItems:"flex-start",justifyContent:"space-between",marginBottom:24}}>
+            <div><h1 className="brand-font" style={{fontSize:24,fontWeight:800,marginBottom:4}}>Payroll</h1><p style={{fontSize:13,color:"var(--text-muted)"}}>Monthly salary management</p></div>
+            <button className="btn btn-primary" onClick={()=>setPm(true)}><Svg d={IC.cc} size={15}/> Run Payroll</button>
+          </header>
+          <div className="grid-cards" style={{marginBottom:20}}>
+            <Stat icon="dollar" label="Monthly Total" value={R(Math.round(tsal/12))} color="#10b981"/>
+            <Stat icon="users" label="On Payroll" value={acnt+emps.filter(e=>e.st==="Probation").length} color="#4f46e5"/>
+            <Stat icon="bar" label="Avg Monthly" value={R(acnt?Math.round(tsal/12/acnt):0)} color="#0ea5e9"/>
+          </div>
+
+          {/* Mobile run payroll btn */}
+          <div className="mobile-only" style={{display:"none",marginBottom:16}}>
+            <button className="btn btn-primary" style={{width:"100%"}} onClick={()=>setPm(true)}><Svg d={IC.cc} size={15}/> Run Payroll</button>
+          </div>
+
+          {/* Desktop table */}
+          <div className="table-wrap desktop-only" style={{marginBottom:20}}>
+            <header style={{padding:"14px 18px",borderBottom:"1px solid var(--border)",background:"#f8fafc"}}><h3 className="brand-font" style={{fontSize:14,fontWeight:700}}>Salary Overview</h3></header>
+            <table>
+              <thead><tr>{["Employee","Department","Annual Salary","Monthly","Status"].map(h=><th key={h}>{h}</th>)}</tr></thead>
+              <tbody>{emps.map(e=><tr key={e.id} className="row">
+                <td><div style={{display:"flex",alignItems:"center",gap:10}}><Av s={e.av} z={30}/><div><div style={{fontWeight:600,fontSize:13}}>{e.name}</div><div style={{fontSize:11,color:"var(--text-muted)"}}>{e.role}</div></div></div></td>
+                <td>{e.dept}</td><td style={{fontWeight:700}}>{R(e.sal)}</td>
+                <td style={{color:"var(--text-muted)"}}>{R(Math.round(e.sal/12))}</td>
+                <td><Bdg s={e.st}/></td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+
+          {/* Mobile salary cards */}
+          <div className="mobile-only" style={{display:"none",marginBottom:16}}>
+            <h3 className="brand-font" style={{fontSize:14,fontWeight:700,marginBottom:12}}>Salary Overview</h3>
+            {emps.map(e=><div key={e.id} className="m-card">
+              <div className="m-row">
+                <Av s={e.av} z={38}/>
+                <div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,fontSize:13}}>{e.name}</div><div className="m-meta">{e.role} · {e.dept}</div></div>
+                <div style={{textAlign:"right"}}><div style={{fontWeight:700,color:"var(--primary)",fontSize:13}}>{R(Math.round(e.sal/12))}</div><div style={{fontSize:10,color:"var(--text-muted)"}}>/month</div></div>
+              </div>
+            </div>)}
+          </div>
+
+          {/* Payroll history */}
+          <div className="table-wrap desktop-only">
+            <header style={{padding:"14px 18px",borderBottom:"1px solid var(--border)",background:"#f8fafc"}}><h3 className="brand-font" style={{fontSize:14,fontWeight:700}}>Payroll History</h3></header>
+            <table>
+              <thead><tr>{["Period","Date","Employees","Total","Status"].map(h=><th key={h}>{h}</th>)}</tr></thead>
+              <tbody>{pay.map(r=><tr key={r.id} className="row">
+                <td style={{fontWeight:600}}>{r.pd}</td><td>{D(r.dt)}</td><td>{r.cnt}</td>
+                <td style={{fontWeight:700}}>{R(r.tot)}</td><td><Bdg s={r.st}/></td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+
+          {/* Mobile payroll history */}
+          <div className="mobile-only" style={{display:"none"}}>
+            <h3 className="brand-font" style={{fontSize:14,fontWeight:700,marginBottom:12}}>Payroll History</h3>
+            {pay.map(r=><div key={r.id} className="m-card">
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div><div style={{fontWeight:600,fontSize:13}}>{r.pd}</div><div className="m-meta">{D(r.dt)} · {r.cnt} employees</div></div>
+                <div style={{textAlign:"right"}}><div style={{fontWeight:700,color:"var(--primary)"}}>{R(r.tot)}</div><Bdg s={r.st}/></div>
+              </div>
+            </div>)}
+          </div>
+        </section>}
+
+        {/* ── LEAVES ── */}
+        {tab==="leaves"&&<section>
+          <header className="desktop-only" style={{display:"flex",gap:14,alignItems:"flex-start",justifyContent:"space-between",marginBottom:24}}>
+            <div><h1 className="brand-font" style={{fontSize:24,fontWeight:800,marginBottom:4}}>Leave Management</h1><p style={{fontSize:13,color:"var(--text-muted)"}}>{plv} pending</p></div>
+            <button className="btn btn-primary" onClick={()=>setLm(true)}><Svg d={IC.plus} size={15}/> Request Leave</button>
+          </header>
+
+          {plv>0&&<div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:12,padding:"12px 16px",marginBottom:16,fontSize:13,color:"#92400e",display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:16}}>⏳</span><strong>{plv} pending request{plv>1?"s":""} need your review</strong>
+          </div>}
+
+          {/* Desktop table */}
+          <div className="table-wrap desktop-only">
+            <table>
+              <thead><tr>{["Employee","Type","From","To","Reason","Status","Actions"].map(h=><th key={h}>{h}</th>)}</tr></thead>
+              <tbody>
+                {lvs.length===0&&<tr><td colSpan={7} style={{textAlign:"center",color:"var(--text-muted)",padding:50}}>No leave requests</td></tr>}
+                {lvs.map(l=>{const e=emps.find(x=>x.id===l.eid);return<tr key={l.id} className="row">
+                  <td><div style={{display:"flex",alignItems:"center",gap:10}}><Av s={e?.av||"??"} z={30}/><span style={{fontWeight:600,fontSize:13}}>{e?.name||"Unknown"}</span></div></td>
+                  <td>{l.type}</td><td>{D(l.fr)}</td><td>{D(l.to)}</td>
+                  <td style={{maxWidth:150,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{l.rs}</td>
+                  <td><Bdg s={l.st}/></td>
+                  <td>{l.st==="Pending"&&<div style={{display:"flex",gap:6}}>
+                    <button style={{background:"#dcfce7",border:"1px solid #bbf7d0",borderRadius:7,padding:"6px 10px",cursor:"pointer",color:"#166534",display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:600}} onClick={()=>upL(l.id,"Approved")}><Svg d={IC.ok} size={13}/> Approve</button>
+                    <button style={{background:"#fee2e2",border:"1px solid #fecaca",borderRadius:7,padding:"6px 10px",cursor:"pointer",color:"#991b1b",display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:600}} onClick={()=>upL(l.id,"Rejected")}><Svg d={IC.x} size={13}/> Reject</button>
+                  </div>}</td>
+                </tr>;})}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile leave cards */}
+          <div className="mobile-only" style={{display:"none"}}>
+            {lvs.length===0&&<div style={{textAlign:"center",color:"var(--text-muted)",padding:"40px 0",fontSize:13}}>No leave requests</div>}
+            {lvs.map(l=><LeaveCard key={l.id} l={l} emp={emps.find(x=>x.id===l.eid)} onApprove={id=>upL(id,"Approved")} onReject={id=>upL(id,"Rejected")}/>)}
+          </div>
+        </section>}
+
+        {/* ── PAYSLIPS ── */}
+        {tab==="payslips"&&<section>
+          <div style={{display:"flex",flexWrap:"wrap",gap:12,alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+            <div className="desktop-only">
+              <h1 className="brand-font" style={{fontSize:24,fontWeight:800,marginBottom:4}}>Payslips</h1>
+              <p style={{fontSize:13,color:"var(--text-muted)"}}>Generate & download payslips</p>
+            </div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <div style={{position:"relative",minWidth:130}}>
+                <select className="input" value={psPeriod.m} onChange={e=>setPsPeriod(p=>({...p,m:+e.target.value}))} style={{paddingRight:28,appearance:"none",cursor:"pointer",fontSize:13}}>
+                  {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
+                </select>
+                <span style={{position:"absolute",right:9,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",display:"flex"}}><Svg d={IC.cd} size={12} col="#64748b"/></span>
+              </div>
+              <div style={{position:"relative",minWidth:86}}>
+                <select className="input" value={psPeriod.y} onChange={e=>setPsPeriod(p=>({...p,y:+e.target.value}))} style={{paddingRight:28,appearance:"none",cursor:"pointer",fontSize:13}}>
+                  {yearOpts.map(y=><option key={y} value={y}>{y}</option>)}
+                </select>
+                <span style={{position:"absolute",right:9,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",display:"flex"}}><Svg d={IC.cd} size={12} col="#64748b"/></span>
+              </div>
+            </div>
+          </div>
+
+          {/* Desktop table */}
+          <div className="table-wrap desktop-only">
+            <table>
+              <thead><tr>{["Employee","Dept","Gross","PAYE","UIF","Net Pay",""].map(h=><th key={h}>{h}</th>)}</tr></thead>
+              <tbody>
+                {emps.filter(e=>e.st==="Active"||e.st==="Probation").map(e=>{
+                  const s=calcSlip(e.sal);
+                  return<tr key={e.id} className="row">
+                    <td><div style={{display:"flex",alignItems:"center",gap:10}}><Av s={e.av} z={32}/><div><div style={{fontWeight:600,fontSize:13}}>{e.name}</div><div style={{fontSize:11,color:"var(--text-muted)"}}>{e.role}</div></div></div></td>
+                    <td>{e.dept}</td>
+                    <td style={{fontWeight:700,color:"#16a34a"}}>{R(s.gross)}</td>
+                    <td style={{color:"#dc2626"}}>-{R(s.paye)}</td>
+                    <td style={{color:"#dc2626"}}>-{R(s.uif)}</td>
+                    <td style={{fontWeight:800,color:"var(--primary)"}}>{R(s.net)}</td>
+                    <td><button className="btn btn-primary" style={{padding:"7px 12px",fontSize:12}} onClick={()=>setPsm(e)}><Svg d={IC.slip} size={13}/> View</button></td>
+                  </tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile payslip cards */}
+          <div className="mobile-only" style={{display:"none"}}>
+            {emps.filter(e=>e.st==="Active"||e.st==="Probation").map(e=>{
+              const s=calcSlip(e.sal);
+              return<div key={e.id} className="m-card">
+                <div className="m-row" style={{marginBottom:12}}>
+                  <Av s={e.av} z={42}/>
+                  <div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,fontSize:13}}>{e.name}</div><div className="m-meta">{e.role} · {e.dept}</div></div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+                  {[["Gross",s.gross,"#16a34a"],["Deductions",s.paye+s.uif,"#dc2626"],["Net Pay",s.net,"var(--primary)"]].map(([l,v,c])=><div key={l} style={{background:"var(--bg)",borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:600,marginBottom:3}}>{l}</div>
+                    <div style={{fontSize:13,fontWeight:800,color:c}}>{R(v)}</div>
+                  </div>)}
+                </div>
+                <button className="btn btn-primary" style={{width:"100%",fontSize:13}} onClick={()=>setPsm(e)}>
+                  <Svg d={IC.slip} size={14}/> View & Download Payslip
+                </button>
+              </div>;
+            })}
+          </div>
+        </section>}
+
+        {/* ── ANALYTICS ── */}
+        {tab==="analytics"&&<section>
+          <header style={{marginBottom:20}}>
+            <h1 className="brand-font" style={{fontSize:24,fontWeight:800,marginBottom:4}}>Analytics</h1>
+            <p style={{fontSize:13,color:"var(--text-muted)"}}>Workforce insights</p>
+          </header>
+          <div className="grid-2">
+            <div className="card">
+              <h3 className="brand-font" style={{fontSize:15,fontWeight:700,marginBottom:18}}>Workforce Status</h3>
+              {STATS.map((s,i)=>{const n=emps.filter(e=>e.st===s).length;const p=emps.length?(n/emps.length)*100:0;return<div key={s} style={{marginBottom:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:12,fontWeight:500}}>{s}</span><span style={{fontSize:12,fontWeight:600}}>{n} <span style={{color:"var(--text-muted)",fontWeight:400}}>({p.toFixed(0)}%)</span></span></div>
+                <div style={{background:"var(--border)",borderRadius:4,height:7}}><div style={{width:`${p}%`,height:"100%",background:AC[i%AC.length],borderRadius:4}}/></div>
+              </div>;})}
+            </div>
+            <div className="card">
+              <h3 className="brand-font" style={{fontSize:15,fontWeight:700,marginBottom:18}}>Avg Salary by Dept</h3>
+              {dbk.map(({d},i)=>{const ee=emps.filter(e=>e.dept===d);const avg=ee.length?ee.reduce((s,e)=>s+e.sal,0)/ee.length:0;const mx=Math.max(...DEPTS.map(x=>{const xe=emps.filter(e=>e.dept===x);return xe.length?xe.reduce((s,e)=>s+e.sal,0)/xe.length:0}));return<div key={d} style={{marginBottom:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:12,fontWeight:500}}>{d}</span><span style={{fontSize:12,fontWeight:600}}>{R(Math.round(avg))}</span></div>
+                <div style={{background:"var(--border)",borderRadius:4,height:7}}><div style={{width:`${mx?(avg/mx)*100:0}%`,height:"100%",background:AC[i%AC.length],borderRadius:4}}/></div>
+              </div>;})}
+            </div>
+          </div>
+        </section>}
+
+      </div>
+    </main>
+
+    {/* ── Bottom nav (mobile) ── */}
+    <nav className="bottom-nav">
+      {NAVS.map(([id,ic,lbl])=><div key={id} className={`bnav-item ${tab===id?"active":""}`} onClick={()=>setTab(id)}>
+        {id==="leaves"&&plv>0&&<span className="bnav-badge">{plv}</span>}
+        <Svg d={IC[ic]} size={22} col={tab===id?"var(--primary)":"#94a3b8"}/>
+        <span>{lbl}</span>
+      </div>)}
+      <div className={`bnav-item ${tab==="analytics"?"active":""}`} onClick={()=>setTab("analytics")}>
+        <Svg d={IC.bar} size={22} col={tab==="analytics"?"var(--primary)":"#94a3b8"}/>
+        <span>Stats</span>
+      </div>
+    </nav>
+
+    {/* ── MODALS ── */}
+    <Modal open={em} onClose={()=>setEm(false)} onSubmit={svE} title={ed?"Edit Employee":"Add Employee"} w={580}>
+      <div className="modal-grid">
+        <div style={{gridColumn:"1/-1"}}><FI label="Full Name" value={ef.name} onChange={v=>setEf(f=>({...f,name:v}))} req ph="e.g. Thabo Dlamini"/></div>
+        <FI label="Email" value={ef.em2} onChange={v=>setEf(f=>({...f,em2:v}))} req type="email" ph="thabo@company.co.za"/>
+        <FI label="Phone" value={ef.ph} onChange={v=>setEf(f=>({...f,ph:v}))} type="tel" ph="+27 11 555 0100"/>
+        <FS label="Department" value={ef.dept} onChange={v=>setEf(f=>({...f,dept:v}))} opts={DEPTS}/>
+        <FS label="Role Level" value={ef.role} onChange={v=>setEf(f=>({...f,role:v}))} opts={ROLES}/>
+        <FI label="Annual Salary (R)" value={ef.sal} onChange={v=>setEf(f=>({...f,sal:v}))} type="number" ph="350000" req/>
+        <FS label="Status" value={ef.st} onChange={v=>setEf(f=>({...f,st:v}))} opts={STATS}/>
+        <FI label="Location" value={ef.loc} onChange={v=>setEf(f=>({...f,loc:v}))} ph="City, Province"/>
+        <div style={{gridColumn:"1/-1"}}><FI label="Join Date" value={ef.jd} onChange={v=>setEf(f=>({...f,jd:v}))} type="date" req/></div>
+      </div>
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
+        <button type="button" className="btn btn-ghost" onClick={()=>setEm(false)}>Cancel</button>
+        <button type="submit" className="btn btn-primary">{ed?"Save Changes":"Add Employee"}</button>
+      </div>
+    </Modal>
+
+    <Modal open={lm} onClose={()=>setLm(false)} onSubmit={sbL} title="Request Leave" w={480}>
+      <div style={{marginBottom:16}}>
+        <label style={LB}>Employee <span style={{color:"#ef4444"}}>*</span></label>
+        <div style={{position:"relative"}}>
+          <select className="input" required value={lf.eid} onChange={e=>setLf(f=>({...f,eid:e.target.value}))} style={{paddingRight:36,appearance:"none",cursor:"pointer"}}>
+            <option value="">Select employee…</option>
+            {emps.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+          <span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",display:"flex"}}><Svg d={IC.cd} size={14} col="#64748b"/></span>
+        </div>
+      </div>
+      <FS label="Leave Type" value={lf.type} onChange={v=>setLf(f=>({...f,type:v}))} opts={LT}/>
+      <div className="modal-grid">
+        <FI label="From Date" value={lf.fr} onChange={v=>setLf(f=>({...f,fr:v}))} type="date" req/>
+        <FI label="To Date" value={lf.to} onChange={v=>setLf(f=>({...f,to:v}))} type="date" req/>
+      </div>
+      <FI label="Reason (Optional)" value={lf.rs} onChange={v=>setLf(f=>({...f,rs:v}))} ph="Brief description…"/>
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
+        <button type="button" className="btn btn-ghost" onClick={()=>setLm(false)}>Cancel</button>
+        <button type="submit" className="btn btn-primary">Submit Request</button>
+      </div>
+    </Modal>
+
+    <Modal open={pm} onClose={()=>setPm(false)} onSubmit={rnP} title="Run Payroll" w={460}>
+      <div style={{textAlign:"center",padding:"10px 0 20px"}}>
+        <div style={{width:56,height:56,background:"var(--primary-light)",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}><Svg d={IC.dollar} size={24} col="var(--primary)"/></div>
+        <p style={{fontSize:14,color:"var(--text-muted)",lineHeight:1.6,marginBottom:18}}>
+          Processing payroll for <strong style={{color:"var(--text-main)"}}>{emps.filter(e=>e.st==="Active"||e.st==="Probation").length} employees</strong> totalling <strong style={{color:"var(--text-main)"}}>{R(Math.round(tsal/12))}</strong> this month.
+        </p>
+        <div style={{background:"var(--bg)",border:"1px solid var(--border)",borderRadius:10,padding:14,textAlign:"left",maxHeight:160,overflowY:"auto"}}>
+          {emps.filter(e=>e.st==="Active"||e.st==="Probation").map(e=><div key={e.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",fontSize:13,borderBottom:"1px solid var(--border)"}}>
+            <span style={{fontWeight:500}}>{e.name}</span><span style={{fontWeight:600}}>{R(Math.round(e.sal/12))}</span>
+          </div>)}
+        </div>
+      </div>
+      <div style={{display:"flex",gap:10}}>
+        <button type="button" className="btn btn-ghost" style={{flex:1}} onClick={()=>setPm(false)}>Cancel</button>
+        <button type="submit" className="btn btn-primary" style={{flex:1}}>Confirm & Process</button>
+      </div>
+    </Modal>
+
+    <Modal open={!!vw} onClose={()=>setVw(null)} title="Employee Profile" w={500}>
+      {vw&&<div>
+        <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:22,padding:16,background:"var(--bg)",borderRadius:14,border:"1px solid var(--border)"}}>
+          <Av s={vw.av} z={60}/><div><h3 className="brand-font" style={{fontSize:19,fontWeight:800,marginBottom:3}}>{vw.name}</h3><div style={{fontSize:13,color:"var(--text-muted)",marginBottom:8}}>{vw.role} · {vw.dept}</div><Bdg s={vw.st}/></div>
+        </div>
+        <div style={{display:"grid",gap:10}}>
+          {[["mail","Email",vw.em],["ph","Phone",vw.ph||"N/A"],["pin","Location",vw.loc||"N/A"],["dollar","Salary",R(vw.sal)],["cal","Joined",D(vw.jd)]].map(([ic,lbl,val])=>(
+            <div key={lbl} style={{display:"flex",alignItems:"center",gap:14,padding:"11px 14px",background:"var(--surface)",borderRadius:10,border:"1px solid var(--border)"}}>
+              <div style={{background:"var(--primary-light)",padding:7,borderRadius:7}}><Svg d={IC[ic]} size={15} col="var(--primary)"/></div>
+              <div><div style={{fontSize:10,color:"var(--text-muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:1}}>{lbl}</div><div style={{fontSize:13,fontWeight:500}}>{val}</div></div>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:20}}>
+          <button className="btn btn-danger" style={{minHeight:40}} onClick={()=>dlE(vw.id)}><Svg d={IC.del} size={14}/> Delete</button>
+          <button className="btn btn-ghost" style={{minHeight:40}} onClick={()=>{setPsm(vw);setVw(null)}}><Svg d={IC.slip} size={14}/> Payslip</button>
+          <button className="btn btn-primary" style={{minHeight:40}} onClick={()=>edE(vw)}><Svg d={IC.edit} size={14}/> Edit</button>
+        </div>
+      </div>}
+    </Modal>
+
+    <Modal open={sm} onClose={()=>setSm(false)} title="Email Settings" w={480}>
+      <div style={{background:"var(--bg)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 14px",marginBottom:18,fontSize:13,color:"var(--text-muted)",lineHeight:1.6}}>
+        Powered by <strong style={{color:"var(--text-main)"}}>Resend</strong>. Get your free key at resend.com. The From Email must be a verified sender.
+      </div>
+      <FI label="Resend API Key" value={cfgF.key} onChange={v=>setCfgF(f=>({...f,key:v}))} ph="re_xxxxxxxxxxxx"/>
+      <FI label="From Email" value={cfgF.from} onChange={v=>setCfgF(f=>({...f,from:v}))} ph="noreply@yourcompany.co.za" type="email"/>
+      <FI label="HR Manager Email" value={cfgF.hr} onChange={v=>setCfgF(f=>({...f,hr:v}))} ph="hr@yourcompany.co.za" type="email" req/>
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+        <button type="button" className="btn btn-ghost" onClick={()=>setSm(false)}>Cancel</button>
+        <button type="button" className="btn btn-primary" onClick={saveCfg}>Save Settings</button>
+      </div>
+    </Modal>
+
+    {psm&&<PayslipViewer emp={psm} period={psPeriod} onClose={()=>setPsm(null)}/>}
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<AuthGate><App/></AuthGate>);
+</script>
+
+<!-- Mobile: show .mobile-only, hide .desktop-only via JS for CSS specificity -->
+<script>
+function applyMobileClasses(){
+  const m=window.innerWidth<=768;
+  document.querySelectorAll('.mobile-only').forEach(el=>el.style.display=m?'block':'none');
+  document.querySelectorAll('.desktop-only').forEach(el=>el.style.display=m?'none':'');
+}
+applyMobileClasses();
+window.addEventListener('resize',applyMobileClasses);
+</script>
+</body>
+</html>
