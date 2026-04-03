@@ -6,6 +6,7 @@
 <title>Nimba People – HR Management</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 /* CSS Variables & Theme */
 :root {
@@ -87,6 +88,12 @@ aside { width: 240px; background: var(--surface); border-right: 1px solid var(--
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
 
+/* Print styles */
+@media print {
+  .no-print { display: none !important; }
+  .print-payslip { display: block !important; }
+}
+
 @media (max-width: 768px) {
   .app-container { flex-direction: column; }
   aside { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border); }
@@ -147,13 +154,10 @@ function LoginScreen(){
     } else {
       const {data,error}=await sb.auth.signUp({email:em,password:pw});
       if(error){
-        // Surface a friendlier message for common Supabase error codes
         if(error.status===422||error.message?.toLowerCase().includes('password'))
           setErr('Password is too weak. Use at least 8 characters with letters and numbers.');
-        else
-          setErr(error.message);
+        else setErr(error.message);
       } else {
-        // Try immediate sign-in (works if email confirm is disabled in Supabase)
         const {error:e2}=await sb.auth.signInWithPassword({email:em,password:pw});
         if(e2){setInfo('Account created! Check your email to confirm, then sign in.');setMode('login');}
       }
@@ -202,6 +206,7 @@ const DEPTS  = ['Engineering','Sales','Marketing','Finance','HR','Operations','L
 const STATS  = ['Active','Probation','On Leave','Terminated'];
 const LT     = ['Annual','Sick','Family Responsibility','Maternity','Paternity','Study','Unpaid'];
 const AC     = ['#6366f1','#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6'];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 // Currency & date helpers
 const R = n => 'R ' + n.toLocaleString('en-ZA');
@@ -237,6 +242,8 @@ const IC = {
   cc:     "M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z M12 8v4 M12 16h.01",
   plus:   "M12 5v14 M5 12h14",
   x:      "M18 6L6 18 M6 6l12 12",
+  slip:   "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8",
+  cog:    "M12 8a4 4 0 100 8 4 4 0 000-8z M12 2v2 M12 20v2 M4.93 4.93l1.41 1.41 M17.66 17.66l1.41 1.41 M2 12h2 M20 12h2 M6.34 17.66l-1.41 1.41 M19.07 4.93l-1.41 1.41",
 };
 
 // Seed data
@@ -257,6 +264,246 @@ const SP = [
   {id:"p2",pd:"February 2025",dt:"2025-02-28",tot:247917,cnt:4,st:"Processed"},
 ];
 
+// ── Payslip helpers ─────────────────────────────────────────────────────────
+function calcSlip(sal){
+  const gross = Math.round(sal / 12);
+  const uif   = Math.min(Math.round(gross * 0.01), 177);
+  let at = 0;
+  if      (sal <= 237100)  at = sal * 0.18;
+  else if (sal <= 370500)  at = 42678  + (sal - 237100)  * 0.26;
+  else if (sal <= 512800)  at = 77362  + (sal - 370500)  * 0.31;
+  else if (sal <= 673000)  at = 121475 + (sal - 512800)  * 0.36;
+  else if (sal <= 857900)  at = 179147 + (sal - 673000)  * 0.39;
+  else if (sal <= 1817000) at = 251258 + (sal - 857900)  * 0.41;
+  else                     at = 644489 + (sal - 1817000) * 0.45;
+  at = Math.max(0, at - 17235);
+  const paye = Math.round(at / 12);
+  const net  = gross - uif - paye;
+  return { gross, uif, paye, net };
+}
+
+function genPayslipPDF(emp, periodStr, slip){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const W = 210, M = 18;
+  let y = 0;
+
+  // Navy header band
+  doc.setFillColor(26, 58, 92);
+  doc.rect(0, 0, W, 42, 'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(18);
+  doc.setTextColor(255,255,255);
+  doc.text('NIMBA PEOPLE', M, 18);
+  doc.setFontSize(9);
+  doc.setTextColor(201,168,76);
+  doc.text('by DithaNimba Holdings', M, 26);
+  doc.setFontSize(13);
+  doc.setTextColor(255,255,255);
+  doc.text('PAYSLIP', W - M, 16, {align:'right'});
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.setTextColor(200,220,240);
+  doc.text(periodStr, W - M, 24, {align:'right'});
+
+  y = 52;
+
+  // Employee info card
+  doc.setFillColor(248,250,252);
+  doc.setDrawColor(226,232,240);
+  doc.roundedRect(M, y, W - 2*M, 30, 3, 3, 'FD');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(13);
+  doc.setTextColor(15,23,42);
+  doc.text(emp.name, M+5, y+11);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(100,116,139);
+  doc.text(`${emp.role}  ·  ${emp.dept}`, M+5, y+19);
+  doc.text(emp.em, M+5, y+26);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  doc.setTextColor(26,58,92);
+  doc.text('Employee ID', W-M-5, y+11, {align:'right'});
+  doc.setFont('helvetica','normal');
+  doc.setTextColor(100,116,139);
+  doc.text(emp.id.toUpperCase(), W-M-5, y+19, {align:'right'});
+
+  y += 40;
+
+  // ── Earnings ──
+  doc.setFontSize(10);
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(22,163,74);
+  doc.text('EARNINGS', M, y); y += 5;
+  doc.setDrawColor(187,247,208);
+  doc.line(M, y, W-M, y); y += 7;
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.setTextColor(51,65,85);
+  doc.text('Basic Salary', M+2, y);
+  doc.text('R '+slip.gross.toLocaleString('en-ZA'), W-M-2, y, {align:'right'});
+  y += 7;
+  doc.setFillColor(240,253,244);
+  doc.rect(M, y, W-2*M, 10, 'F');
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(15,23,42);
+  doc.text('Gross Earnings', M+2, y+7);
+  doc.setTextColor(22,163,74);
+  doc.text('R '+slip.gross.toLocaleString('en-ZA'), W-M-2, y+7, {align:'right'});
+
+  y += 20;
+
+  // ── Deductions ──
+  doc.setFontSize(10);
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(220,38,38);
+  doc.text('DEDUCTIONS', M, y); y += 5;
+  doc.setDrawColor(254,202,202);
+  doc.line(M, y, W-M, y); y += 7;
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.setTextColor(100,116,139);
+  doc.text('PAYE (Income Tax — 2024/25 estimate)', M+2, y);
+  doc.setTextColor(220,38,38);
+  doc.text('- R '+slip.paye.toLocaleString('en-ZA'), W-M-2, y, {align:'right'});
+  y += 7;
+  doc.setTextColor(100,116,139);
+  doc.text('UIF Contribution (1%, max R177)', M+2, y);
+  doc.setTextColor(220,38,38);
+  doc.text('- R '+slip.uif.toLocaleString('en-ZA'), W-M-2, y, {align:'right'});
+  y += 7;
+  doc.setFillColor(254,242,242);
+  doc.rect(M, y, W-2*M, 10, 'F');
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(185,28,28);
+  doc.text('Total Deductions', M+2, y+7);
+  doc.text('- R '+(slip.paye+slip.uif).toLocaleString('en-ZA'), W-M-2, y+7, {align:'right'});
+
+  y += 22;
+
+  // ── Net Pay ──
+  doc.setFillColor(26,58,92);
+  doc.roundedRect(M, y, W-2*M, 18, 3, 3, 'F');
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.setTextColor(200,220,240);
+  doc.text('NET PAY', M+5, y+7);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(15);
+  doc.setTextColor(255,255,255);
+  doc.text('R '+slip.net.toLocaleString('en-ZA'), M+5, y+14);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.setTextColor(201,168,76);
+  doc.text(periodStr, W-M-5, y+11, {align:'right'});
+
+  y += 30;
+
+  // Footer
+  doc.setDrawColor(226,232,240);
+  doc.line(M, y, W-M, y);
+  y += 5;
+  doc.setTextColor(148,163,184);
+  doc.setFontSize(8);
+  doc.text('PAYE is an estimate based on the 2024/25 South African income tax tables. This payslip is confidential.', M, y);
+  doc.text(`Generated ${new Date().toLocaleDateString('en-ZA')}  ·  Nimba People HR System`, M, y+5);
+
+  doc.save(`payslip-${emp.name.replace(/ /g,'-')}-${periodStr.replace(/ /g,'-')}.pdf`);
+}
+
+// ── Email helper ────────────────────────────────────────────────────────────
+// emailCfg is passed explicitly so closures always use fresh config
+async function sendResendEmail(cfg, to, subject, html){
+  if(!cfg.key||!cfg.from||!to) return;
+  try {
+    await fetch("https://api.resend.com/emails",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":`Bearer ${cfg.key}`},
+      body:JSON.stringify({from:cfg.from,to,subject,html})
+    });
+  } catch(e){ console.warn("Email send failed:",e); }
+}
+
+function leaveSubmittedEmployeeHTML(emp, lv){
+  return `<div style="font-family:Inter,Arial,sans-serif;max-width:600px;margin:0 auto;background:#f8fafc;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
+  <div style="background:#1a3a5c;padding:24px 28px;display:flex;align-items:center;justify-content:space-between">
+    <div><div style="color:#fff;font-size:18px;font-weight:700;margin-bottom:2px">Leave Request Submitted</div>
+    <div style="color:rgba(255,255,255,0.6);font-size:12px">Nimba People · HR Management</div></div>
+    <div style="background:#c9a84c;color:#fff;font-size:11px;font-weight:700;padding:5px 12px;border-radius:20px;letter-spacing:0.06em">PENDING</div>
+  </div>
+  <div style="padding:28px">
+    <p style="font-size:15px;color:#0f172a;margin:0 0 8px">Hi <strong>${emp.name}</strong>,</p>
+    <p style="font-size:14px;color:#475569;margin:0 0 24px;line-height:1.6">Your leave request has been received and is <strong>pending HR approval</strong>. You will be notified by email once a decision has been made.</p>
+    <table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px">
+      <tr style="background:#f8fafc"><td style="padding:11px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;width:130px">Leave Type</td><td style="padding:11px 16px;font-size:14px;color:#0f172a;font-weight:600">${lv.type}</td></tr>
+      <tr><td style="padding:11px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;border-top:1px solid #f1f5f9">From</td><td style="padding:11px 16px;font-size:14px;color:#0f172a;border-top:1px solid #f1f5f9">${D(lv.fr)}</td></tr>
+      <tr style="background:#f8fafc"><td style="padding:11px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;border-top:1px solid #f1f5f9">To</td><td style="padding:11px 16px;font-size:14px;color:#0f172a;border-top:1px solid #f1f5f9">${D(lv.to)}</td></tr>
+      ${lv.rs?`<tr><td style="padding:11px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;border-top:1px solid #f1f5f9">Reason</td><td style="padding:11px 16px;font-size:14px;color:#475569;border-top:1px solid #f1f5f9">${lv.rs}</td></tr>`:''}
+    </table>
+    <p style="font-size:12px;color:#94a3b8;margin:0">If you did not submit this request, please contact your HR manager immediately.</p>
+  </div>
+  <div style="background:#f1f5f9;padding:14px 28px;border-top:1px solid #e2e8f0">
+    <p style="font-size:11px;color:#94a3b8;margin:0">Nimba People by DithaNimba Holdings &nbsp;·&nbsp; This is an automated notification. Do not reply.</p>
+  </div>
+</div>`;
+}
+
+function leaveSubmittedHRHTML(emp, lv){
+  return `<div style="font-family:Inter,Arial,sans-serif;max-width:600px;margin:0 auto;background:#f8fafc;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
+  <div style="background:#1a3a5c;padding:24px 28px">
+    <div style="color:#fff;font-size:18px;font-weight:700;margin-bottom:2px">Action Required: Leave Request</div>
+    <div style="color:rgba(255,255,255,0.6);font-size:12px">A new leave request requires your review</div>
+  </div>
+  <div style="padding:28px">
+    <div style="display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:24px">
+      <div style="width:44px;height:44px;border-radius:50%;background:#1a3a5c;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;flex-shrink:0">${emp.av}</div>
+      <div><div style="font-size:15px;font-weight:700;color:#0f172a">${emp.name}</div>
+      <div style="font-size:13px;color:#64748b;margin-top:2px">${emp.role} &nbsp;·&nbsp; ${emp.dept}</div></div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px">
+      <tr style="background:#f8fafc"><td style="padding:11px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;width:130px">Leave Type</td><td style="padding:11px 16px;font-size:14px;color:#0f172a;font-weight:600">${lv.type}</td></tr>
+      <tr><td style="padding:11px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;border-top:1px solid #f1f5f9">From</td><td style="padding:11px 16px;font-size:14px;color:#0f172a;border-top:1px solid #f1f5f9">${D(lv.fr)}</td></tr>
+      <tr style="background:#f8fafc"><td style="padding:11px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;border-top:1px solid #f1f5f9">To</td><td style="padding:11px 16px;font-size:14px;color:#0f172a;border-top:1px solid #f1f5f9">${D(lv.to)}</td></tr>
+      ${lv.rs?`<tr><td style="padding:11px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;border-top:1px solid #f1f5f9">Reason</td><td style="padding:11px 16px;font-size:14px;color:#475569;border-top:1px solid #f1f5f9">${lv.rs}</td></tr>`:''}
+    </table>
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:14px 16px;font-size:13px;color:#92400e">
+      ⚡ To approve or reject this request, sign in to <strong>Nimba People</strong> and navigate to <strong>Leave Management</strong>.
+    </div>
+  </div>
+  <div style="background:#f1f5f9;padding:14px 28px;border-top:1px solid #e2e8f0">
+    <p style="font-size:11px;color:#94a3b8;margin:0">Nimba People by DithaNimba Holdings &nbsp;·&nbsp; Automated notification.</p>
+  </div>
+</div>`;
+}
+
+function leaveDecisionHTML(emp, lv, decision){
+  const approved = decision === 'Approved';
+  const color = approved ? '#16a34a' : '#dc2626';
+  const bg    = approved ? '#dcfce7' : '#fee2e2';
+  const icon  = approved ? '✅' : '❌';
+  return `<div style="font-family:Inter,Arial,sans-serif;max-width:600px;margin:0 auto;background:#f8fafc;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
+  <div style="background:#1a3a5c;padding:24px 28px;display:flex;align-items:center;justify-content:space-between">
+    <div><div style="color:#fff;font-size:18px;font-weight:700;margin-bottom:2px">Leave Request ${decision}</div>
+    <div style="color:rgba(255,255,255,0.6);font-size:12px">Nimba People · HR Management</div></div>
+    <div style="background:${color};color:#fff;font-size:11px;font-weight:700;padding:5px 12px;border-radius:20px;letter-spacing:0.06em">${decision.toUpperCase()}</div>
+  </div>
+  <div style="padding:28px">
+    <p style="font-size:15px;color:#0f172a;margin:0 0 8px">Hi <strong>${emp.name}</strong>,</p>
+    <p style="font-size:14px;color:#475569;margin:0 0 24px;line-height:1.6">${icon} Your <strong>${lv.type} Leave</strong> request from <strong>${D(lv.fr)}</strong> to <strong>${D(lv.to)}</strong> has been <strong style="color:${color}">${decision}</strong> by HR.</p>
+    ${!approved?`<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:14px 16px;font-size:13px;color:#9a3412;margin-bottom:20px">If you have questions about this decision, please contact your HR manager directly.</div>`:''}
+    <table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+      <tr style="background:#f8fafc"><td style="padding:11px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;width:130px">Leave Type</td><td style="padding:11px 16px;font-size:14px;color:#0f172a;font-weight:600">${lv.type}</td></tr>
+      <tr><td style="padding:11px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;border-top:1px solid #f1f5f9">Period</td><td style="padding:11px 16px;font-size:14px;color:#0f172a;border-top:1px solid #f1f5f9">${D(lv.fr)} – ${D(lv.to)}</td></tr>
+      <tr style="background:${bg}"><td style="padding:11px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;border-top:1px solid #f1f5f9">Status</td><td style="padding:11px 16px;font-size:14px;font-weight:700;color:${color};border-top:1px solid #f1f5f9">${decision}</td></tr>
+    </table>
+  </div>
+  <div style="background:#f1f5f9;padding:14px 28px;border-top:1px solid #e2e8f0">
+    <p style="font-size:11px;color:#94a3b8;margin:0">Nimba People by DithaNimba Holdings &nbsp;·&nbsp; Automated notification.</p>
+  </div>
+</div>`;
+}
+
 // ── Small reusable components ───────────────────────────────────────────────
 function Svg({d,size=20,col="currentColor"}){
   const paths=d.split(" M ").map((p,i)=>i===0?p:"M "+p);
@@ -270,7 +517,7 @@ function Av({s,z=40}){
   return<div style={{width:z,height:z,borderRadius:"50%",background:c,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:z*0.35,flexShrink:0,fontFamily:"Syne,sans-serif"}}>{s||"?"}</div>;
 }
 function Bdg({s}){
-  const m={Active:["#dcfce7","#16a34a"],Probation:["#fef9c3","#ca8a04"],"On Leave":["#dbeafe","#2563eb"],Terminated:["#fee2e2","#dc2626"]};
+  const m={Active:["#dcfce7","#16a34a"],Probation:["#fef9c3","#ca8a04"],"On Leave":["#dbeafe","#2563eb"],Terminated:["#fee2e2","#dc2626"],Pending:["#fef9c3","#ca8a04"],Approved:["#dcfce7","#16a34a"],Rejected:["#fee2e2","#dc2626"],Processed:["#dcfce7","#16a34a"]};
   const [bg,col]=m[s]||["#f1f5f9","#475569"];
   return<span style={{background:bg,color:col,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{s}</span>;
 }
@@ -304,7 +551,6 @@ function Modal({open,onClose,onSubmit,title,children,w=500}){
     </div>
   </div>;
 }
-
 function Stat({icon,label,value,sub,color="#4f46e5",trend}){
   return<div className="card" style={{position:"relative",overflow:"hidden"}}>
     <div style={{position:"absolute",top:0,right:0,width:110,height:110,background:`radial-gradient(circle at 100% 0%,${color}15 0%,transparent 70%)`}}/>
@@ -318,38 +564,172 @@ function Stat({icon,label,value,sub,color="#4f46e5",trend}){
   </div>;
 }
 
+// ── PayslipViewer modal ──────────────────────────────────────────────────────
+function PayslipViewer({emp, period, onClose}){
+  const slip = calcSlip(emp.sal);
+  const periodStr = `${MONTHS[period.m]} ${period.y}`;
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{background:"var(--surface)",borderRadius:20,width:"100%",maxWidth:580,maxHeight:"92vh",overflowY:"auto",boxShadow:"0 24px 64px rgba(0,0,0,0.18)"}}>
+        {/* Header */}
+        <div style={{background:"var(--primary)",padding:"22px 28px",borderRadius:"20px 20px 0 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div className="brand-font" style={{color:"#fff",fontSize:18,fontWeight:800,letterSpacing:"-0.01em"}}>NIMBA PEOPLE</div>
+            <div style={{color:"var(--gold)",fontSize:10,letterSpacing:"0.1em",marginTop:2,fontWeight:600}}>by DithaNimba Holdings</div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div className="brand-font" style={{color:"#fff",fontSize:14,fontWeight:700,letterSpacing:"0.12em"}}>PAYSLIP</div>
+            <div style={{color:"rgba(255,255,255,0.65)",fontSize:12,marginTop:3}}>{periodStr}</div>
+          </div>
+        </div>
+
+        <div style={{padding:28}}>
+          {/* Employee info */}
+          <div style={{display:"flex",alignItems:"center",gap:16,padding:16,background:"var(--bg)",borderRadius:12,border:"1px solid var(--border)",marginBottom:24}}>
+            <Av s={emp.av} z={52}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div className="brand-font" style={{fontSize:17,fontWeight:800,color:"var(--text-main)"}}>{emp.name}</div>
+              <div style={{fontSize:13,color:"var(--text-muted)",marginTop:2}}>{emp.role} · {emp.dept}</div>
+              <div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>{emp.em}</div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0}}>
+              <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Employee ID</div>
+              <div style={{fontSize:12,fontWeight:700,color:"var(--primary)",marginTop:3}}>{emp.id.toUpperCase()}</div>
+            </div>
+          </div>
+
+          {/* Earnings + Deductions grid */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
+            {/* Earnings */}
+            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:12,overflow:"hidden"}}>
+              <div style={{background:"#f0fdf4",padding:"10px 16px",borderBottom:"1px solid #bbf7d0"}}>
+                <span style={{fontSize:11,fontWeight:700,color:"#16a34a",letterSpacing:"0.08em",textTransform:"uppercase"}}>Earnings</span>
+              </div>
+              <div style={{padding:"14px 16px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--border)"}}>
+                  <span style={{fontSize:13,color:"var(--text-muted)"}}>Basic Salary</span>
+                  <span style={{fontSize:13,fontWeight:600}}>{R(slip.gross)}</span>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0 0"}}>
+                  <span style={{fontSize:13,fontWeight:700}}>Gross Pay</span>
+                  <span style={{fontSize:14,fontWeight:800,color:"#16a34a"}}>{R(slip.gross)}</span>
+                </div>
+              </div>
+            </div>
+            {/* Deductions */}
+            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:12,overflow:"hidden"}}>
+              <div style={{background:"#fff5f5",padding:"10px 16px",borderBottom:"1px solid #fecaca"}}>
+                <span style={{fontSize:11,fontWeight:700,color:"#dc2626",letterSpacing:"0.08em",textTransform:"uppercase"}}>Deductions</span>
+              </div>
+              <div style={{padding:"14px 16px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--border)"}}>
+                  <span style={{fontSize:13,color:"var(--text-muted)"}}>PAYE (estimated)</span>
+                  <span style={{fontSize:13,fontWeight:600,color:"#dc2626"}}>-{R(slip.paye)}</span>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--border)"}}>
+                  <span style={{fontSize:13,color:"var(--text-muted)"}}>UIF (1%)</span>
+                  <span style={{fontSize:13,fontWeight:600,color:"#dc2626"}}>-{R(slip.uif)}</span>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0 0"}}>
+                  <span style={{fontSize:13,fontWeight:700}}>Total</span>
+                  <span style={{fontSize:14,fontWeight:800,color:"#dc2626"}}>-{R(slip.paye+slip.uif)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Net pay */}
+          <div style={{background:"var(--primary)",borderRadius:12,padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+            <div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}}>Net Pay</div>
+              <div className="brand-font" style={{fontSize:30,fontWeight:800,color:"#fff",lineHeight:1}}>{R(slip.net)}</div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",marginBottom:4}}>Pay Period</div>
+              <div style={{fontSize:14,fontWeight:700,color:"var(--gold)"}}>{periodStr}</div>
+            </div>
+          </div>
+
+          <div style={{fontSize:11,color:"var(--text-muted)",textAlign:"center",marginBottom:22,lineHeight:1.5}}>
+            PAYE is an estimate based on the 2024/25 South African tax tables. This document is confidential.
+          </div>
+
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
+            <button type="button" className="btn btn-ghost" onClick={()=>window.print()}><Svg d={IC.slip} size={15}/> Print</button>
+            <button type="button" className="btn btn-primary" onClick={()=>genPayslipPDF(emp,periodStr,slip)}><Svg d={IC.slip} size={15}/> Download PDF</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ────────────────────────────────────────────────────────────────
 function App(){
   const[tab,setTab]=useState("dashboard");
   const[emps,setEmps]=useState([]);
   const[lvs,setLvs]=useState([]);
   const[pay,setPay]=useState([]);
   const[rdy,setRdy]=useState(false);
-  
-  // Toast Notification State
-  const[toast,setToast]=useState(null);
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(null), 3500); };
 
+  // Toast
+  const[toast,setToast]=useState(null);
+  const showToast=(msg,ok=true)=>{setToast({msg,ok});setTimeout(()=>setToast(null),3500);};
+
+  // Employee modal
   const[em,setEm]=useState(false);
   const[ed,setEd]=useState(null);
   const[ef,setEf]=useState({name:"",role:ROLES[2],dept:DEPTS[0],sal:"",st:STATS[0],em2:"",ph:"",loc:"",jd:""});
+
+  // Leave modal
   const[lm,setLm]=useState(false);
   const[lf,setLf]=useState({eid:"",type:LT[0],fr:"",to:"",rs:""});
+
+  // Payroll modal
   const[pm,setPm]=useState(false);
+
+  // Employee view
   const[vw,setVw]=useState(null);
+
+  // Filters
   const[srch,setSrch]=useState("");
   const[df,setDf]=useState("All");
   const[sf,setSf]=useState("All");
+
+  // Settings modal
+  const[sm,setSm]=useState(false);
+  const[cfgF,setCfgF]=useState({key:"",from:"",hr:""});
+  const[cfg,setCfg]=useState({key:"",from:"",hr:""});
+
+  // Payslip
+  const[psm,setPsm]=useState(null); // employee obj or null
+  const now=new Date();
+  const[psPeriod,setPsPeriod]=useState({m:now.getMonth(),y:now.getFullYear()});
+  const yearOpts=[...Array(5)].map((_,i)=>now.getFullYear()-i);
 
   useEffect(()=>{
     setEmps(LS.g("hr-e")||SE);
     setLvs(LS.g("hr-l")||SL);
     setPay(LS.g("hr-p")||SP);
+    const c={key:LS.g("hr-cfg-key")||"",from:LS.g("hr-cfg-from")||"",hr:LS.g("hr-cfg-hr")||""};
+    setCfg(c);setCfgF(c);
     setRdy(true);
   },[]);
 
+  function saveCfg(){
+    LS.s("hr-cfg-key",cfgF.key);
+    LS.s("hr-cfg-from",cfgF.from);
+    LS.s("hr-cfg-hr",cfgF.hr);
+    setCfg({...cfgF});
+    setSm(false);
+    showToast("Email settings saved");
+  }
+  function openSettings(){setCfgF({...cfg});setSm(true);}
+
   const sv=(e,l,p)=>{LS.s("hr-e",e);LS.s("hr-l",l);LS.s("hr-p",p)};
   const EF0=()=>({name:"",role:ROLES[2],dept:DEPTS[0],sal:"",st:STATS[0],em2:"",ph:"",loc:"",jd:new Date().toISOString().split("T")[0]});
-  
+
   function addE(){setEd(null);setEf(EF0());setEm(true)}
   function edE(e){setEd(e);setEf({name:e.name,role:e.role,dept:e.dept,sal:e.sal,st:e.st,em2:e.em,ph:e.ph,loc:e.loc,jd:e.jd});setEm(true);setVw(null)}
   function svE(){
@@ -357,22 +737,32 @@ function App(){
     const av=ef.name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
     const n=ed?emps.map(e=>e.id===ed.id?{...e,...ef,sal:+ef.sal,em:ef.em2,av}:e):[...emps,{...ef,id:"e"+Date.now(),sal:+ef.sal,em:ef.em2,av}];
     setEmps(n);sv(n,lvs,pay);setEm(false);
-    showToast(ed ? "Employee updated successfully" : "New employee added");
+    showToast(ed?"Employee updated successfully":"New employee added");
   }
   function dlE(id){
-    const n=emps.filter(e=>e.id!==id); setEmps(n); sv(n,lvs,pay); 
+    const n=emps.filter(e=>e.id!==id);setEmps(n);sv(n,lvs,pay);
     if(vw?.id===id)setVw(null);
     showToast("Employee deleted");
   }
-  function sbL(){
+  async function sbL(){
     if(!lf.eid||!lf.fr||!lf.to)return;
-    const n=[...lvs,{...lf,id:"l"+Date.now(),st:"Pending"}];
+    const newLv={...lf,id:"l"+Date.now(),st:"Pending"};
+    const n=[...lvs,newLv];
     setLvs(n);sv(emps,n,pay);setLm(false);setLf({eid:"",type:LT[0],fr:"",to:"",rs:""});
     showToast("Leave request submitted");
+    // Send emails async (non-blocking)
+    const emp=emps.find(e=>e.id===lf.eid);
+    if(emp){
+      sendResendEmail(cfg,emp.em,`Leave Request Submitted – ${lf.type} (${D(lf.fr)} to ${D(lf.to)})`,leaveSubmittedEmployeeHTML(emp,newLv));
+      if(cfg.hr) sendResendEmail(cfg,cfg.hr,`Action Required: Leave Request from ${emp.name}`,leaveSubmittedHRHTML(emp,newLv));
+    }
   }
-  function upL(id,st){
+  async function upL(id,st){
     const n=lvs.map(l=>l.id===id?{...l,st}:l);setLvs(n);sv(emps,n,pay);
     showToast(`Leave request ${st.toLowerCase()}`);
+    const lv=lvs.find(l=>l.id===id);
+    const emp=lv?emps.find(e=>e.id===lv.eid):null;
+    if(emp&&lv) sendResendEmail(cfg,emp.em,`Your Leave Request has been ${st}`,leaveDecisionHTML(emp,lv,st));
   }
   function rnP(){
     const act=emps.filter(e=>e.st==="Active"||e.st==="Probation");
@@ -391,13 +781,14 @@ function App(){
 
   if(!rdy)return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>Loading…</div>;
 
-  const NAVS=[["dashboard","home","Dashboard"],["employees","users","Employees"],["payroll","dollar","Payroll"],["leaves","cal","Leave Mgmt"],["analytics","bar","Analytics"]];
+  const NAVS=[["dashboard","home","Dashboard"],["employees","users","Employees"],["payroll","dollar","Payroll"],["leaves","cal","Leave Mgmt"],["payslips","slip","Payslips"],["analytics","bar","Analytics"]];
+  const emailConfigured = !!(cfg.key && cfg.from && cfg.hr);
 
   return(
     <div className="app-container">
-      {toast && (
-        <div className="toast" style={{position:"fixed", bottom:24, right:24, background:"#0f172a", color:"#fff", padding:"14px 20px", borderRadius:8, fontSize:14, fontWeight:500, boxShadow:"0 10px 15px -3px rgba(0,0,0,0.1)", zIndex:9999, display:"flex", alignItems:"center", gap:10}}>
-          <Svg d={IC.chkCircle} size={18} col="#10b981"/> {toast}
+      {toast&&(
+        <div className="toast" style={{position:"fixed",bottom:24,right:24,background:"#0f172a",color:"#fff",padding:"14px 20px",borderRadius:8,fontSize:14,fontWeight:500,boxShadow:"0 10px 15px -3px rgba(0,0,0,0.1)",zIndex:9999,display:"flex",alignItems:"center",gap:10}}>
+          <Svg d={IC.chkCircle} size={18} col="#10b981"/> {toast.msg}
         </div>
       )}
 
@@ -405,7 +796,6 @@ function App(){
       <aside>
         <header style={{padding:"28px 20px 24px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-            {/* Nimba People logo mark — gold briefcase outline on navy */}
             <div style={{width:36,height:36,background:"var(--primary)",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="2" y="7" width="20" height="14" rx="2"/>
@@ -432,10 +822,14 @@ function App(){
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
             <Av s="AD" z={34}/>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:600,color:"var(--text-main)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{sb.auth.getUser&&"Admin"}</div>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--text-main)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>Admin</div>
               <div style={{fontSize:11,color:"var(--text-muted)"}}>HR Manager</div>
             </div>
           </div>
+          <button className="btn btn-ghost" style={{width:"100%",justifyContent:"flex-start",gap:8,padding:"8px 10px",fontSize:13,marginBottom:6}} onClick={openSettings}>
+            <Svg d={IC.cog} size={15} col="#64748b"/> Email Settings
+            {!emailConfigured&&<span style={{marginLeft:"auto",width:7,height:7,borderRadius:"50%",background:"#f59e0b",display:"inline-block"}}/>}
+          </button>
           <button className="btn btn-ghost" style={{width:"100%",justifyContent:"flex-start",gap:8,padding:"8px 10px",fontSize:13}} onClick={()=>sb.auth.signOut()}>
             <Svg d={IC.logout} size={15} col="#64748b"/> Sign Out
           </button>
@@ -446,29 +840,37 @@ function App(){
       <main style={{flex:1,overflowY:"auto"}}>
         <div className="fade main-content">
 
+          {/* Email config banner */}
+          {!emailConfigured&&(tab==="leaves"||tab==="payslips")&&(
+            <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:12,padding:"12px 18px",marginBottom:24,display:"flex",alignItems:"center",gap:12,fontSize:13,color:"#92400e"}}>
+              <Svg d={IC.mail} size={16} col="#d97706"/>
+              <span><strong>Email notifications not configured.</strong> Set up your Resend API key in Email Settings to send leave emails.</span>
+              <button className="btn" style={{marginLeft:"auto",background:"#f59e0b",color:"#fff",padding:"6px 14px",fontSize:12}} onClick={openSettings}>Configure</button>
+            </div>
+          )}
+
+          {/* ── Dashboard ──────────────────────────────────────────────────── */}
           {tab==="dashboard"&&<section>
             <header style={{marginBottom:32}}>
               <h1 className="brand-font" style={{fontSize:28,fontWeight:800,color:"var(--text-main)",letterSpacing:"-0.02em",marginBottom:6}}>Good day 👋</h1>
               <p style={{fontSize:14,color:"var(--text-muted)"}}>Here's your team overview for today.</p>
             </header>
-            
             <div className="grid-cards" style={{marginBottom:32}}>
               <Stat icon="users" label="Total Employees"   value={emps.length} sub={`${acnt} active`} color="#4f46e5" trend={4}/>
               <Stat icon="dollar" label="Annual Payroll"   value={R(tsal)} sub="Active employees" color="#10b981" trend={2}/>
               <Stat icon="cal"    label="On Leave"         value={olv} sub={`${plv} pending requests`} color="#f59e0b"/>
               <Stat icon="bar"    label="Avg Monthly Salary" value={R(acnt?Math.round(tsal/12/acnt):0)} sub="Per active employee" color="#0ea5e9" trend={1}/>
             </div>
-            
             <div className="grid-2" style={{marginBottom:24}}>
               <div className="card">
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
                   <h3 className="brand-font" style={{fontSize:16,fontWeight:700}}>Team Members</h3>
                   <button className="btn btn-ghost" onClick={()=>setTab("employees")}>View all <Svg d={IC.cr} size={14}/></button>
                 </div>
-                {emps.length===0 && <div style={{textAlign:"center",color:"var(--text-muted)",padding:"20px 0",fontSize:13}}>No employees</div>}
+                {emps.length===0&&<div style={{textAlign:"center",color:"var(--text-muted)",padding:"20px 0",fontSize:13}}>No employees</div>}
                 {emps.slice(0,5).map(e=>(
                   <div key={e.id} style={{display:"flex",alignItems:"center",gap:14,padding:"12px 0",borderBottom:"1px solid var(--border)"}}>
-                    <Av s={e.av}/><div style={{flex:1, minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:"var(--text-main)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{e.name}</div><div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>{e.role} · {e.dept}</div></div>
+                    <Av s={e.av}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:"var(--text-main)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{e.name}</div><div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>{e.role} · {e.dept}</div></div>
                     <Bdg s={e.st}/>
                   </div>
                 ))}
@@ -483,7 +885,7 @@ function App(){
                   :lvs.filter(l=>l.st==="Pending").slice(0,4).map(l=>{
                     const e=emps.find(x=>x.id===l.eid);
                     return<div key={l.id} style={{display:"flex",alignItems:"center",gap:14,padding:"12px 0",borderBottom:"1px solid var(--border)"}}>
-                      <Av s={e?.av||"??"}/><div style={{flex:1, minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:"var(--text-main)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{e?.name||"Unknown"}</div><div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>{l.type} · {D(l.fr)}</div></div>
+                      <Av s={e?.av||"??"}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:"var(--text-main)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{e?.name||"Unknown"}</div><div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>{l.type} · {D(l.fr)}</div></div>
                       <div style={{display:"flex",gap:8}}>
                         <button type="button" style={{background:"#dcfce7",border:"none",borderRadius:6,padding:"6px",cursor:"pointer",color:"#166534",display:"flex"}} onClick={()=>upL(l.id,"Approved")}><Svg d={IC.ok} size={14}/></button>
                         <button type="button" style={{background:"#fee2e2",border:"none",borderRadius:6,padding:"6px",cursor:"pointer",color:"#991b1b",display:"flex"}} onClick={()=>upL(l.id,"Rejected")}><Svg d={IC.x} size={14}/></button>
@@ -495,12 +897,12 @@ function App(){
             </div>
           </section>}
 
+          {/* ── Employees ──────────────────────────────────────────────────── */}
           {tab==="employees"&&<section>
             <header style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"flex-start",justifyContent:"space-between",marginBottom:28}}>
               <div><h1 className="brand-font" style={{fontSize:26,fontWeight:800,marginBottom:6}}>Employees</h1><p style={{fontSize:14,color:"var(--text-muted)"}}>{emps.length} team members · {new Set(emps.map(e=>e.dept)).size} departments</p></div>
               <button className="btn btn-primary" onClick={addE}><Svg d={IC.uadd} size={16}/> Add Employee</button>
             </header>
-            
             <div style={{display:"flex",gap:16,marginBottom:24,flexWrap:"wrap"}}>
               <div style={{position:"relative",flex:1,minWidth:240}}>
                 <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",display:"flex"}}><Svg d={IC.srch} size={16} col="var(--text-muted)"/></span>
@@ -515,7 +917,6 @@ function App(){
                 </div>
               ))}
             </div>
-            
             <div className="table-wrap">
               <table>
                 <thead><tr>{["Employee","Department","Role","Annual Salary","Status","Joined",""].map(h=><th key={h}>{h}</th>)}</tr></thead>
@@ -541,18 +942,17 @@ function App(){
             </div>
           </section>}
 
+          {/* ── Payroll ──────────────────────────────────────────────────────── */}
           {tab==="payroll"&&<section>
             <header style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"flex-start",justifyContent:"space-between",marginBottom:28}}>
               <div><h1 className="brand-font" style={{fontSize:26,fontWeight:800,marginBottom:6}}>Payroll</h1><p style={{fontSize:14,color:"var(--text-muted)"}}>Monthly salary management & payroll history</p></div>
               <button className="btn btn-primary" onClick={()=>setPm(true)}><Svg d={IC.cc} size={16}/> Run Payroll</button>
             </header>
-            
             <div className="grid-cards" style={{marginBottom:32}}>
               <Stat icon="dollar" label="Monthly Payroll Requirements" value={R(Math.round(tsal/12))} color="#10b981"/>
               <Stat icon="users"  label="Active on Payroll"  value={acnt+emps.filter(e=>e.st==="Probation").length} color="#4f46e5"/>
               <Stat icon="bar"    label="Avg Monthly Salary" value={R(acnt?Math.round(tsal/12/acnt):0)} color="#0ea5e9"/>
             </div>
-            
             <div className="table-wrap" style={{marginBottom:28}}>
               <header style={{padding:"16px 20px",borderBottom:"1px solid var(--border)",background:"#f8fafc"}}><h3 className="brand-font" style={{fontSize:15,fontWeight:700}}>Salary Overview</h3></header>
               <table>
@@ -568,7 +968,6 @@ function App(){
                 ))}</tbody>
               </table>
             </div>
-            
             <div className="table-wrap">
               <header style={{padding:"16px 20px",borderBottom:"1px solid var(--border)",background:"#f8fafc"}}><h3 className="brand-font" style={{fontSize:15,fontWeight:700}}>Payroll History</h3></header>
               <table>
@@ -586,12 +985,12 @@ function App(){
             </div>
           </section>}
 
+          {/* ── Leaves ───────────────────────────────────────────────────────── */}
           {tab==="leaves"&&<section>
             <header style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"flex-start",justifyContent:"space-between",marginBottom:28}}>
               <div><h1 className="brand-font" style={{fontSize:26,fontWeight:800,marginBottom:6}}>Leave Management</h1><p style={{fontSize:14,color:"var(--text-muted)"}}>{plv} pending requests need attention</p></div>
               <button className="btn btn-primary" onClick={()=>setLm(true)}><Svg d={IC.plus} size={16}/> Request Leave</button>
             </header>
-            
             <div className="table-wrap">
               <table>
                 <thead><tr>{["Employee","Type","From","To","Reason","Status","Actions"].map(h=><th key={h}>{h}</th>)}</tr></thead>
@@ -617,12 +1016,76 @@ function App(){
             </div>
           </section>}
 
+          {/* ── Payslips ─────────────────────────────────────────────────────── */}
+          {tab==="payslips"&&<section>
+            <header style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"flex-start",justifyContent:"space-between",marginBottom:28}}>
+              <div>
+                <h1 className="brand-font" style={{fontSize:26,fontWeight:800,marginBottom:6}}>Payslips</h1>
+                <p style={{fontSize:14,color:"var(--text-muted)"}}>Generate and download employee payslips</p>
+              </div>
+              {/* Period selector */}
+              <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                <div style={{position:"relative",minWidth:140}}>
+                  <select className="input" value={psPeriod.m} onChange={e=>setPsPeriod(p=>({...p,m:+e.target.value}))} style={{paddingRight:32,appearance:"none",cursor:"pointer",fontSize:13}}>
+                    {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
+                  </select>
+                  <span style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",display:"flex"}}><Svg d={IC.cd} size={13} col="#64748b"/></span>
+                </div>
+                <div style={{position:"relative",minWidth:90}}>
+                  <select className="input" value={psPeriod.y} onChange={e=>setPsPeriod(p=>({...p,y:+e.target.value}))} style={{paddingRight:32,appearance:"none",cursor:"pointer",fontSize:13}}>
+                    {yearOpts.map(y=><option key={y} value={y}>{y}</option>)}
+                  </select>
+                  <span style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",display:"flex"}}><Svg d={IC.cd} size={13} col="#64748b"/></span>
+                </div>
+              </div>
+            </header>
+
+            {/* Period badge */}
+            <div style={{display:"inline-flex",alignItems:"center",gap:8,background:"var(--primary-light)",color:"var(--primary)",borderRadius:20,padding:"6px 16px",fontSize:13,fontWeight:600,marginBottom:24}}>
+              <Svg d={IC.cal} size={14} col="var(--primary)"/>
+              {MONTHS[psPeriod.m]} {psPeriod.y} payslips
+            </div>
+
+            <div className="table-wrap">
+              <table>
+                <thead><tr>{["Employee","Department","Role","Gross Monthly","Est. PAYE","UIF","Net Pay",""].map(h=><th key={h}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {emps.length===0&&<tr><td colSpan={8} style={{textAlign:"center",color:"var(--text-muted)",padding:60}}>No employees found.</td></tr>}
+                  {emps.filter(e=>e.st==="Active"||e.st==="Probation").map(e=>{
+                    const s=calcSlip(e.sal);
+                    return<tr key={e.id} className="row">
+                      <td><div style={{display:"flex",alignItems:"center",gap:12}}><Av s={e.av} z={34}/><div><div style={{fontWeight:600,color:"var(--text-main)"}}>{e.name}</div><div style={{fontSize:12,color:"var(--text-muted)",marginTop:2}}>{e.em}</div></div></div></td>
+                      <td>{e.dept}</td>
+                      <td>{e.role}</td>
+                      <td style={{fontWeight:700,color:"#16a34a"}}>{R(s.gross)}</td>
+                      <td style={{color:"#dc2626"}}>-{R(s.paye)}</td>
+                      <td style={{color:"#dc2626"}}>-{R(s.uif)}</td>
+                      <td style={{fontWeight:800,color:"var(--primary)",fontSize:14}}>{R(s.net)}</td>
+                      <td>
+                        <button type="button" className="btn btn-primary" style={{padding:"7px 14px",fontSize:12}} onClick={()=>setPsm(e)}>
+                          <Svg d={IC.slip} size={13}/> View Payslip
+                        </button>
+                      </td>
+                    </tr>;
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Terminated/inactive note */}
+            {emps.filter(e=>e.st!=="Active"&&e.st!=="Probation").length>0&&(
+              <div style={{marginTop:16,padding:"12px 16px",background:"var(--bg)",borderRadius:10,border:"1px solid var(--border)",fontSize:13,color:"var(--text-muted)"}}>
+                <strong style={{color:"var(--text-main)"}}>{emps.filter(e=>e.st!=="Active"&&e.st!=="Probation").length}</strong> employees with Terminated or On Leave status are excluded from payslips.
+              </div>
+            )}
+          </section>}
+
+          {/* ── Analytics ──────────────────────────────────────────────────── */}
           {tab==="analytics"&&<section>
             <header style={{marginBottom:28}}>
               <h1 className="brand-font" style={{fontSize:26,fontWeight:800,marginBottom:6}}>Analytics</h1>
               <p style={{fontSize:14,color:"var(--text-muted)"}}>Workforce insights and salary metrics</p>
             </header>
-            
             <div className="grid-2" style={{marginBottom:24}}>
               <div className="card">
                 <h3 className="brand-font" style={{fontSize:16,fontWeight:700,marginBottom:24}}>Workforce Status</h3>
@@ -644,7 +1107,9 @@ function App(){
         </div>
       </main>
 
-      {/* MODALS */}
+      {/* ── MODALS ──────────────────────────────────────────────────────────── */}
+
+      {/* Add/Edit Employee */}
       <Modal open={em} onClose={()=>setEm(false)} onSubmit={svE} title={ed?"Edit Employee":"Add New Employee"} w={600}>
         <div className="modal-grid">
           <div style={{gridColumn:"1/-1"}}><FI label="Full Name" value={ef.name} onChange={v=>setEf(f=>({...f,name:v}))} req ph="e.g. Thabo Dlamini"/></div>
@@ -663,6 +1128,7 @@ function App(){
         </div>
       </Modal>
 
+      {/* Request Leave */}
       <Modal open={lm} onClose={()=>setLm(false)} onSubmit={sbL} title="Request Leave" w={500}>
         <div style={{marginBottom:16}}>
           <label style={LB}>Employee <span style={{color:"#ef4444"}}>*</span></label>
@@ -680,12 +1146,17 @@ function App(){
           <FI label="To Date"   value={lf.to} onChange={v=>setLf(f=>({...f,to:v}))} type="date" req/>
         </div>
         <FI label="Reason (Optional)" value={lf.rs} onChange={v=>setLf(f=>({...f,rs:v}))} ph="Brief description…"/>
+        {emailConfigured&&<div style={{background:"var(--primary-light)",borderRadius:8,padding:"10px 14px",fontSize:12,color:"var(--primary)",marginBottom:8,display:"flex",gap:8,alignItems:"center"}}>
+          <Svg d={IC.mail} size={13} col="var(--primary)"/>
+          A confirmation email will be sent to the employee and HR manager.
+        </div>}
         <div style={{display:"flex",gap:12,justifyContent:"flex-end",marginTop:16}}>
           <button type="button" className="btn btn-ghost" onClick={()=>setLm(false)}>Cancel</button>
           <button type="submit" className="btn btn-primary"><Svg d={IC.ok} size={16}/> Submit Request</button>
         </div>
       </Modal>
 
+      {/* Run Payroll */}
       <Modal open={pm} onClose={()=>setPm(false)} onSubmit={rnP} title="Run Payroll Processing" w={480}>
         <div style={{textAlign:"center",padding:"16px 0 24px"}}>
           <div style={{width:64,height:64,background:"var(--primary-light)",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px"}}>
@@ -695,7 +1166,7 @@ function App(){
             You are about to process payroll for <strong style={{color:"var(--text-main)"}}>{emps.filter(e=>e.st==="Active"||e.st==="Probation").length} employees</strong> totalling <strong style={{color:"var(--text-main)",fontSize:16}}>{R(Math.round(tsal/12))}</strong> this month.
           </p>
           <div style={{background:"var(--bg)",border:"1px solid var(--border)",borderRadius:12,padding:"16px",textAlign:"left",maxHeight:180,overflowY:"auto"}}>
-            {emps.filter(e=>e.st==="Active"||e.st==="Probation").length === 0 && <div style={{textAlign:"center", color:"var(--text-muted)"}}>No active employees on payroll.</div>}
+            {emps.filter(e=>e.st==="Active"||e.st==="Probation").length===0&&<div style={{textAlign:"center",color:"var(--text-muted)"}}>No active employees on payroll.</div>}
             {emps.filter(e=>e.st==="Active"||e.st==="Probation").map(e=>(
               <div key={e.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",fontSize:13,borderBottom:"1px solid var(--border)"}}>
                 <span style={{fontWeight:500}}>{e.name}</span><span style={{fontWeight:600}}>{R(Math.round(e.sal/12))}</span>
@@ -705,10 +1176,11 @@ function App(){
         </div>
         <div style={{display:"flex",gap:12,justifyItems:"stretch"}}>
           <button type="button" className="btn btn-ghost" style={{flex:1}} onClick={()=>setPm(false)}>Cancel</button>
-          <button type="submit" className="btn btn-primary" style={{flex:1}} disabled={emps.filter(e=>e.st==="Active"||e.st==="Probation").length === 0}><Svg d={IC.ok} size={16}/> Confirm &amp; Process</button>
+          <button type="submit" className="btn btn-primary" style={{flex:1}} disabled={emps.filter(e=>e.st==="Active"||e.st==="Probation").length===0}><Svg d={IC.ok} size={16}/> Confirm &amp; Process</button>
         </div>
       </Modal>
 
+      {/* Employee Profile */}
       <Modal open={!!vw} onClose={()=>setVw(null)} title="Employee Profile" w={520}>
         {vw&&<div>
           <div style={{display:"flex",alignItems:"center",gap:20,marginBottom:28,padding:20,background:"var(--bg)",borderRadius:16,border:"1px solid var(--border)"}}>
@@ -727,10 +1199,32 @@ function App(){
           </div>
           <div style={{display:"flex",gap:12,justifyContent:"flex-end",marginTop:24}}>
             <button type="button" className="btn btn-danger" onClick={()=>dlE(vw.id)}><Svg d={IC.del} size={14}/> Delete</button>
+            <button type="button" className="btn btn-ghost" onClick={()=>{setPsm(vw);setVw(null)}}><Svg d={IC.slip} size={14}/> Payslip</button>
             <button type="button" className="btn btn-primary" onClick={()=>edE(vw)}><Svg d={IC.edit} size={14}/> Edit Profile</button>
           </div>
         </div>}
       </Modal>
+
+      {/* Email Settings */}
+      <Modal open={sm} onClose={()=>setSm(false)} title="Email Settings" w={500}>
+        <div style={{background:"var(--bg)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:20,fontSize:13,color:"var(--text-muted)",lineHeight:1.6}}>
+          Powered by <strong style={{color:"var(--text-main)"}}>Resend</strong>. Get your free API key at <strong>resend.com</strong>. 
+          The <em>From Email</em> must be a verified sender domain in your Resend account.
+        </div>
+        <FI label="Resend API Key" value={cfgF.key} onChange={v=>setCfgF(f=>({...f,key:v}))} ph="re_xxxxxxxxxxxxxxxxxxxx"/>
+        <FI label="From Email (verified sender)" value={cfgF.from} onChange={v=>setCfgF(f=>({...f,from:v}))} ph="noreply@yourcompany.co.za" type="email"/>
+        <FI label="HR Manager Email (receives leave notifications)" value={cfgF.hr} onChange={v=>setCfgF(f=>({...f,hr:v}))} ph="hr@yourcompany.co.za" type="email" req/>
+        <div style={{background:"var(--primary-light)",borderRadius:8,padding:"12px 14px",fontSize:12,color:"var(--primary)",marginBottom:20,lineHeight:1.6}}>
+          <strong>How it works:</strong> When a leave request is submitted, the employee receives a confirmation email and the HR manager receives an action-required email. When HR approves or rejects, the employee is notified automatically.
+        </div>
+        <div style={{display:"flex",gap:12,justifyContent:"flex-end"}}>
+          <button type="button" className="btn btn-ghost" onClick={()=>setSm(false)}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={saveCfg}><Svg d={IC.ok} size={16}/> Save Settings</button>
+        </div>
+      </Modal>
+
+      {/* Payslip Viewer */}
+      {psm&&<PayslipViewer emp={psm} period={psPeriod} onClose={()=>setPsm(null)}/>}
 
     </div>
   );
