@@ -212,7 +212,7 @@ return()=>subscription.unsubscribe();
 },[]);
 if(session===undefined)return<Splash/>;
 if(!session)return<LoginScreen/>;
-return React.cloneElement(children,{userEmail:session?.user?.email||’’});
+return React.cloneElement(children,{userEmail:session && session.user ? session.user.email : ‘’||’’});
 }
 
 function Splash(){
@@ -417,7 +417,7 @@ return<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={co
 }
 function Av({s,z=40}){
 const colors=[”#1a3a5c”,”#0ea5e9”,”#10b981”,”#8b5cf6”,”#f59e0b”,”#ef4444”];
-const c=colors[(s?.charCodeAt(0)||0)%colors.length];
+const c=colors[((s&&s.charCodeAt)?s.charCodeAt(0):0)%colors.length];
 return<div style={{width:z,height:z,borderRadius:“50%”,background:c,display:“flex”,alignItems:“center”,justifyContent:“center”,color:”#fff”,fontWeight:700,fontSize:z*0.35,flexShrink:0,fontFamily:“Syne,sans-serif”}}>{s||”?”}</div>;
 }
 function Bdg({s}){
@@ -548,9 +548,9 @@ return<div className=“m-card” onClick={()=>onTap(e)}>
 function LeaveCard({l,emp,onApprove,onReject}){
 return<div className="m-card">
 <div className="m-row" style={{marginBottom:(onApprove||onReject)?12:0}}>
-<Av s={emp?.av||”??”} z={38}/>
+<Av s={emp&&emp.av?emp.av:”??”} z={38}/>
 <div style={{flex:1,minWidth:0}}>
-<div style={{fontWeight:600,fontSize:13}}>{emp?.name||“Unknown”}</div>
+<div style={{fontWeight:600,fontSize:13}}>{emp&&emp.name?emp.name:“Unknown”}</div>
 <div className="m-meta">{l.type} · {D(l.fr)} → {D(l.to)}</div>
 </div>
 <Bdg s={l.st}/>
@@ -640,7 +640,7 @@ const av=ef.name.split(” “).map(w=>w[0]).join(””).slice(0,2).toUpperCase
 const n=ed?emps.map(e=>e.id===ed.id?{…e,…ef,sal:+ef.sal,em:ef.em2,av}:e):[…emps,{…ef,id:“e”+Date.now(),sal:+ef.sal,em:ef.em2,av}];
 setEmps(n);sv(n,lvs,pay);setEm(false);showToast(ed?“Employee updated”:“Employee added”);
 }
-function dlE(id){const n=emps.filter(e=>e.id!==id);setEmps(n);sv(n,lvs,pay);if(vw?.id===id)setVw(null);showToast(“Employee deleted”);}
+function dlE(id){const n=emps.filter(e=>e.id!==id);setEmps(n);sv(n,lvs,pay);if(vw&&vw.id===id)setVw(null);showToast(“Employee deleted”);}
 function sbL(){
 if(!lf.eid||!lf.fr||!lf.to)return;
 const nl={…lf,id:“l”+Date.now(),st:“Pending”};
@@ -676,7 +676,7 @@ const filt=isAdmin
 : (myProfile ? [myProfile] : []);
 
 // Leaves: admin sees all, employee sees only their own
-const visibleLvs=isAdmin ? lvs : lvs.filter(l=>l.eid===myProfile?.id);
+const visibleLvs=isAdmin ? lvs : lvs.filter(l=>l.eid===(myProfile?myProfile.id:null));
 
 // Payslip list: admin sees all active, employee sees only themselves
 const payslipEmps=isAdmin
@@ -1139,9 +1139,9 @@ return<div className="app-container">
         </div>
       </div>
     : <div style={{background:"var(--primary-light)",borderRadius:10,padding:"12px 14px",marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
-        <Av s={myProfile?.av||"??"} z={32}/>
-        <div><div style={{fontSize:13,fontWeight:600,color:"var(--text-main)"}}>{myProfile?.name||userEmail}</div>
-        <div style={{fontSize:11,color:"var(--text-muted)"}}>{myProfile?.role} · {myProfile?.dept}</div></div>
+        <Av s={myProfile&&myProfile.av?myProfile.av:'??'||"??"} z={32}/>
+        <div><div style={{fontSize:13,fontWeight:600,color:"var(--text-main)"}}>{myProfile&&myProfile.name?myProfile.name:userEmail}</div>
+        <div style={{fontSize:11,color:"var(--text-muted)"}}>{myProfile?myProfile.role:''} · {myProfile?myProfile.dept:''}</div></div>
       </div>
   }
   <FS label="Leave Type" value={lf.type} onChange={v=>setLf(f=>({...f,type:v}))} opts={LT}/>
