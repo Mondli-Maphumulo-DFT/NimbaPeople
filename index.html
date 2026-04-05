@@ -2030,7 +2030,7 @@ function saveCfg() {
     if (st === 'Approved' && lv) deductLeaveBalance(lv.eid, lv);
     showToast(`Leave ${st.toLowerCase()}`);
     audit(`Leave ${st}`, `${emp ? emp.name : 'Employee'} – ${lv ? lv.type : ''} ${lv ? D(lv.fr)+' to '+D(lv.to) : ''}`);
-    sendPushNotification(`Leave ${st}`, `${emp ? emp.name+''s' : 'A'} ${lv ? lv.type : ''} leave has been ${st.toLowerCase()}`);
+    sendPushNotification(`Leave ${st}`, `${emp ? emp.name + "'s" : 'A'} ${lv ? lv.type : ''} leave has been ${st.toLowerCase()}`);
     if (emp && lv && cfg.key && cfg.from) sendResendEmail(cfg, emp.em, `Your Leave Request has been ${st}`, leaveDecisionHTML(emp, lv, st));
   }
   function rnP() {
