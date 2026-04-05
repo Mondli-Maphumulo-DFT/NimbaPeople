@@ -294,13 +294,24 @@ function LoginScreen() {
   const [err, setErr] = useState('');
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState('login');
+  const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'reset'
+
   async function submit() {
     setLoading(true);
     setErr('');
     setInfo('');
     if (!em) {
       setErr('Please enter your email.');
+      setLoading(false);
+      return;
+    }
+    if (mode === 'reset') {
+      const {
+        error
+      } = await sb.auth.resetPasswordForEmail(em, {
+        redirectTo: 'https://dithanimbaholdings.co.za'
+      });
+      if (error) setErr(error.message);else setInfo('Password reset email sent! Check your inbox.');
       setLoading(false);
       return;
     }
@@ -319,7 +330,6 @@ function LoginScreen() {
       if (error) setErr(error.message);
     } else {
       const {
-        data,
         error
       } = await sb.auth.signUp({
         email: em,
@@ -332,10 +342,7 @@ function LoginScreen() {
           email: em,
           password: pw
         });
-        if (e2) {
-          setInfo('Account created! Check your email to confirm, then sign in.');
-          setMode('login');
-        }
+        if (e2) setInfo('Account created! Check your email to confirm, then sign in.');
       }
     }
     setLoading(false);
@@ -419,13 +426,13 @@ function LoginScreen() {
       marginBottom: 4,
       color: "var(--text-main)"
     }
-  }, mode === 'login' ? 'Welcome back' : 'Create account'), /*#__PURE__*/React.createElement("p", {
+  }, mode === 'login' ? 'Welcome back' : mode === 'signup' ? 'Create account' : 'Reset password'), /*#__PURE__*/React.createElement("p", {
     style: {
       fontSize: 13,
       color: "var(--text-muted)",
       marginBottom: 24
     }
-  }, mode === 'login' ? 'Sign in to your HR dashboard' : 'Register to get started'), err && /*#__PURE__*/React.createElement("div", {
+  }, mode === 'login' ? 'Sign in to your HR dashboard' : mode === 'signup' ? 'Register to get started' : 'Enter your email to receive a reset link'), err && /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--danger-light)",
       color: "#b91c1c",
@@ -468,9 +475,9 @@ function LoginScreen() {
     value: em,
     onChange: e => setEm(e.target.value),
     placeholder: "you@company.co.za"
-  })), /*#__PURE__*/React.createElement("div", {
+  })), mode !== 'reset' && /*#__PURE__*/React.createElement("div", {
     style: {
-      marginBottom: 24
+      marginBottom: mode === 'login' ? 8 : 24
     }
   }, /*#__PURE__*/React.createElement("label", {
     style: {
@@ -496,7 +503,24 @@ function LoginScreen() {
       color: "var(--text-muted)",
       marginTop: 6
     }
-  }, "Use at least 6 characters.")), /*#__PURE__*/React.createElement("button", {
+  }, "Use at least 6 characters.")), mode === 'login' && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "right",
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: "var(--primary)",
+      cursor: "pointer",
+      fontWeight: 600
+    },
+    onClick: () => {
+      setMode('reset');
+      setErr('');
+      setInfo('');
+    }
+  }, "Forgot password?")), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-primary",
     style: {
       width: "100%",
@@ -505,24 +529,45 @@ function LoginScreen() {
     },
     onClick: submit,
     disabled: loading
-  }, loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'), /*#__PURE__*/React.createElement("p", {
+  }, loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Create Account' : 'Send Reset Email'), /*#__PURE__*/React.createElement("p", {
     style: {
       textAlign: "center",
       fontSize: 13,
       color: "var(--text-muted)",
-      marginTop: 20
+      marginTop: 16
     }
-  }, mode === 'login' ? 'No account? ' : 'Already registered? ', /*#__PURE__*/React.createElement("span", {
+  }, mode === 'reset' ? /*#__PURE__*/React.createElement("span", {
     style: {
       color: "var(--primary)",
       cursor: "pointer",
       fontWeight: 700
     },
     onClick: () => {
-      setMode(mode === 'login' ? 'signup' : 'login');
+      setMode('login');
+      setErr('');
+      setInfo('');
+    }
+  }, "Back to Sign In") : mode === 'login' ? /*#__PURE__*/React.createElement(React.Fragment, null, "No account? ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "var(--primary)",
+      cursor: "pointer",
+      fontWeight: 700
+    },
+    onClick: () => {
+      setMode('signup');
       setErr('');
     }
-  }, mode === 'login' ? 'Sign up' : 'Sign in'))));
+  }, "Sign up")) : /*#__PURE__*/React.createElement(React.Fragment, null, "Already registered? ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "var(--primary)",
+      cursor: "pointer",
+      fontWeight: 700
+    },
+    onClick: () => {
+      setMode('login');
+      setErr('');
+    }
+  }, "Sign in")))));
 }
 
 /* -- Constants -------------------------------- */
@@ -1618,7 +1663,6 @@ function App({
   });
   const yearOpts = [...Array(5)].map((_, i) => now.getFullYear() - i);
   useEffect(() => {
-    setEmps(LS.g("hr-e") || SE);
     setPay(LS.g("hr-p") || SP);
     const c = {
       key: LS.g("hr-cfg-key") || "",
@@ -1627,9 +1671,34 @@ function App({
     };
     setCfg(c);
     setCfgF(c);
-    // Load leaves from Supabase so all users see the same data
-    sb.from("nimba_leaves").select("*").order("created_at", {
-      ascending: false
+    // Load employees from Supabase
+    sb.from("nimba_employees").select("*").order("created_at", {
+      ascending: true
+    }).then(({
+      data,
+      error
+    }) => {
+      if (!error && data && data.length > 0) {
+        setEmps(data.map(r => ({
+          id: r.id,
+          name: r.name,
+          role: r.role,
+          dept: r.department,
+          sal: r.salary || 0,
+          st: r.status || 'Active',
+          em: r.email,
+          ph: r.phone || '',
+          loc: r.location || '',
+          jd: r.join_date || '',
+          av: r.avatar || (r.name ? r.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '??')
+        })));
+      } else {
+        setEmps(LS.g("hr-e") || SE);
+      }
+      // Then load leaves
+      return sb.from("nimba_leaves").select("*").order("created_at", {
+        ascending: false
+      });
     }).then(({
       data,
       error
@@ -1659,8 +1728,7 @@ function App({
     setSm(false);
     showToast("Settings saved");
   }
-  const sv = (e, p) => {
-    LS.s("hr-e", e);
+  const sv = p => {
     LS.s("hr-p", p);
   };
   const EF0 = () => ({
@@ -1695,31 +1763,71 @@ function App({
     setEm(true);
     setVw(null);
   }
-  function svE() {
+  async function svE() {
     if (!ef.name || !ef.em2) return;
     const av = ef.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-    const n = ed ? emps.map(e => e.id === ed.id ? {
-      ...e,
-      ...ef,
-      sal: +ef.sal,
-      em: ef.em2,
-      av
-    } : e) : [...emps, {
-      ...ef,
-      id: "e" + Date.now(),
-      sal: +ef.sal,
-      em: ef.em2,
-      av
-    }];
-    setEmps(n);
-    sv(n, pay);
+    const row = {
+      name: ef.name,
+      email: ef.em2,
+      phone: ef.ph || null,
+      department: ef.dept,
+      role: ef.role,
+      salary: +ef.sal,
+      status: ef.st,
+      location: ef.loc || null,
+      join_date: ef.jd || null,
+      avatar: av
+    };
+    if (ed) {
+      const {
+        error
+      } = await sb.from("nimba_employees").update(row).eq("id", ed.id);
+      if (error) {
+        showToast("Error saving - try again");
+        console.error(error);
+        return;
+      }
+      setEmps(prev => prev.map(e => e.id === ed.id ? {
+        ...e,
+        ...ef,
+        sal: +ef.sal,
+        em: ef.em2,
+        av
+      } : e));
+    } else {
+      const newId = "e" + Date.now();
+      const {
+        error
+      } = await sb.from("nimba_employees").insert({
+        id: newId,
+        ...row
+      });
+      if (error) {
+        showToast("Error saving - try again");
+        console.error(error);
+        return;
+      }
+      setEmps(prev => [...prev, {
+        ...ef,
+        id: newId,
+        sal: +ef.sal,
+        em: ef.em2,
+        av
+      }]);
+    }
     setEm(false);
     showToast(ed ? "Employee updated" : "Employee added");
   }
-  function dlE(id) {
-    const n = emps.filter(e => e.id !== id);
-    setEmps(n);
-    sv(n, pay);
+  async function dlE(id) {
+    const {
+      error
+    } = await sb.from("nimba_employees").delete().eq("id", id);
+    if (error) {
+      showToast("Error deleting employee");
+      console.error(error);
+      return;
+    }
+    setEmps(prev => prev.filter(e => e.id !== id));
     if (vw && vw.id === id) setVw(null);
     showToast("Employee deleted");
   }
@@ -1805,7 +1913,7 @@ function App({
     };
     const n = [r, ...pay];
     setPay(n);
-    sv(emps, n);
+    sv(n);
     setPm(false);
     showToast("Payroll processed");
   }
