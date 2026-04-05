@@ -186,15 +186,17 @@ aside{width:240px;background:var(--surface);border-right:1px solid var(--border)
 <div id="root"></div>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<script type="text/babel" data-presets="react">
-const {useState,useEffect,useRef}=React;
-
-const {createClient}=supabase;
-const sb=createClient(
+<script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
+<script>
+// Supabase init outside Babel so it never gets transpiled
+window.__sb = window.supabase.createClient(
   'https://tpnppkcknqzjamwkqugo.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwbnBwa2NrbnF6amFtd2txdWdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzExNzQsImV4cCI6MjA5MDQ0NzE3NH0.mQd7fMQle3lzr8ehKkOVwgzbTNoMoIkYwp8cqSFYR_k'
 );
+</script>
+<script type="text/babel" data-presets="react">
+const {useState,useEffect,useRef}=React;
+const sb=window.__sb;
 
 /* -- Admin config ----------------------------- */
 const ADMIN_EMAIL='mondliwes@gmail.com';
