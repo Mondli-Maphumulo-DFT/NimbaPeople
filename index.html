@@ -25,29 +25,6 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
 }
-body.dark {
-  --bg: #0f172a;
-  --surface: #1e293b;
-  --border: #334155;
-  --text-main: #f1f5f9;
-  --text-muted: #94a3b8;
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
-  --primary-light: #1e3a5f;
-  --gold: #f59e0b;
-  --gold-light: #1c1710;
-  --danger: #ef4444;
-  --danger-light: #3f1515;
-  --success: #10b981;
-}
-body.dark .btn-danger{background:#3f1515;color:#fca5a5;border-color:#7f1d1d}
-body.dark th{background:#1e293b;color:#94a3b8}
-body.dark td{color:#cbd5e1}
-body.dark .row:hover td{background:#263244}
-body.dark .input{background:#1e293b;color:#f1f5f9;border-color:#334155}
-body.dark .btn-ghost{background:transparent;color:#94a3b8;border-color:#334155}
-body.dark .btn-ghost:hover{background:#334155;color:#f1f5f9}
-body.dark select option{background:#1e293b;color:#f1f5f9}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body,#root{height:100%}
 body{background:var(--bg);font-family:'Inter',sans-serif;color:var(--text-main);-webkit-tap-highlight-color:transparent}
@@ -767,7 +744,7 @@ function calcSlip(sal) {
     net: gross - uif - paye
   };
 }
-function genPayslipPDF(emp, periodStr, slip, companyLogo) {
+function genPayslipPDF(emp, periodStr, slip) {
   const {
     jsPDF
   } = window.jspdf;
@@ -780,15 +757,10 @@ function genPayslipPDF(emp, periodStr, slip, companyLogo) {
   let y = 0;
   doc.setFillColor(26, 58, 92);
   doc.rect(0, 0, W, 42, 'F');
-  // Add logo if available
-  if (companyLogo && companyLogo.startsWith('data:image')) {
-    try { doc.addImage(companyLogo, 'PNG', M, 8, 28, 22, '', 'FAST'); } catch(e) {}
-  }
-  const nameX = (companyLogo && companyLogo.startsWith('data:image')) ? M + 32 : M;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
   doc.setTextColor(255, 255, 255);
-  doc.text('NIMBA PEOPLE', nameX, 18);
+  doc.text('NIMBA PEOPLE', M, 18);
   doc.setFontSize(9);
   doc.setTextColor(201, 168, 76);
   doc.text('by DithaNimba Holdings', M, 26);
@@ -1214,20 +1186,10 @@ function PayslipViewer({
   period,
   onClose,
   cfg,
-  companyLogo,
-  showToast
+  onEmail
 }) {
   const slip = calcSlip(emp.sal);
   const periodStr = `${MONTHS[period.m]} ${period.y}`;
-  const [emailing, setEmailing] = React.useState(false);
-  async function emailPayslip() {
-    if (!cfg || !cfg.key || !cfg.from) { showToast && showToast("Configure email settings first", false); return; }
-    setEmailing(true);
-    const html = payslipEmailHTML(emp, periodStr, slip, companyLogo);
-    await sendResendEmail(cfg, emp.em, `Your Payslip for ${periodStr} – Nimba People`, html);
-    setEmailing(false);
-    showToast && showToast(`Payslip emailed to ${emp.em}`);
-  }
   return /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
@@ -1463,18 +1425,29 @@ function PayslipViewer({
     }
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn btn-ghost",
-    style: { flex: 1 },
+    style: {
+      flex: 1
+    },
     onClick: onClose
-  }, "Close"), /*#__PURE__*/React.createElement("button", {
+  }, "Close"), cfg && cfg.key && cfg.from && /*#__PURE__*/React.createElement("button", {
     className: "btn btn-ghost",
-    style: { flex: 1 },
-    onClick: emailPayslip,
-    disabled: emailing
-  }, /*#__PURE__*/React.createElement(Svg, { d: IC.mail, size: 13 }), emailing ? " Sending..." : " Email"), /*#__PURE__*/React.createElement("button", {
+    style: {
+      flex: 1
+    },
+    onClick: () => onEmail(emp, periodStr, slip)
+  }, /*#__PURE__*/React.createElement(Svg, {
+    d: IC.mail,
+    size: 14
+  }), " Email"), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-primary",
-    style: { flex: 1 },
-    onClick: () => genPayslipPDF(emp, periodStr, slip, companyLogo)
-  }, /*#__PURE__*/React.createElement(Svg, { d: IC.slip, size: 14 }), " Download"))))); 
+    style: {
+      flex: 1
+    },
+    onClick: () => genPayslipPDF(emp, periodStr, slip)
+  }, /*#__PURE__*/React.createElement(Svg, {
+    d: IC.slip,
+    size: 14
+  }), " Download PDF")))));
 }
 
 /* -- Mobile Employee Card ---------------------- */
@@ -1604,46 +1577,6 @@ function useIsMobile() {
 }
 
 /* -- Email helpers ---------------------------- */
-
-/* -- Payslip Email HTML ----------------------- */
-function payslipEmailHTML(emp, periodStr, slip, companyLogo) {
-  const logoHtml = companyLogo ? `<img src="${companyLogo}" style="height:36px;object-fit:contain;margin-right:12px" alt="Logo"/>` : '';
-  return `<div style="font-family:Inter,Arial,sans-serif;max-width:580px;margin:0 auto;background:#f8fafc;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0"><div style="background:#1a3a5c;padding:22px 24px;display:flex;align-items:center;justify-content:space-between"><div style="display:flex;align-items:center">${logoHtml}<div><div style="color:#fff;font-size:17px;font-weight:700">Your Payslip</div><div style="color:rgba(255,255,255,0.6);font-size:12px">${periodStr}</div></div></div><div style="background:#c9a84c;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px">CONFIDENTIAL</div></div><div style="padding:24px"><div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:20px"><div style="width:42px;height:42px;border-radius:50%;background:#1a3a5c;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0">${emp.av}</div><div><div style="font-size:14px;font-weight:700;color:#0f172a">${emp.name}</div><div style="font-size:12px;color:#64748b;margin-top:2px">${emp.role} · ${emp.dept}</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px"><div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;text-align:center"><div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Gross Pay</div><div style="font-size:20px;font-weight:800;color:#16a34a">R ${slip.gross.toLocaleString('en-ZA')}</div></div><div style="background:#fff5f5;border:1px solid #fecaca;border-radius:10px;padding:14px;text-align:center"><div style="font-size:10px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Deductions</div><div style="font-size:20px;font-weight:800;color:#dc2626">-R ${(slip.paye+slip.uif).toLocaleString('en-ZA')}</div></div></div><table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:16px"><tr style="background:#f8fafc"><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;width:160px">PAYE (est.)</td><td style="padding:10px 14px;font-size:13px;color:#dc2626;font-weight:600">-R ${slip.paye.toLocaleString('en-ZA')}</td></tr><tr><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">UIF (1%)</td><td style="padding:10px 14px;font-size:13px;color:#dc2626;font-weight:600;border-top:1px solid #f1f5f9">-R ${slip.uif.toLocaleString('en-ZA')}</td></tr></table><div style="background:#1a3a5c;border-radius:10px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div><div style="font-size:10px;color:rgba(255,255,255,0.6);font-weight:600;letter-spacing:0.08em;margin-bottom:4px">NET PAY</div><div style="font-size:24px;font-weight:800;color:#fff">R ${slip.net.toLocaleString('en-ZA')}</div></div><div style="color:#c9a84c;font-weight:700;font-size:13px">${periodStr}</div></div><div style="font-size:11px;color:#94a3b8;text-align:center">PAYE is an estimate based on 2024/25 South African income tax tables. Confidential.</div></div><div style="background:#f1f5f9;padding:12px 24px;border-top:1px solid #e2e8f0"><p style="font-size:11px;color:#94a3b8;margin:0">Nimba People by DithaNimba Holdings · Automated payslip delivery.</p></div></div>`;
-}
-
-/* -- Audit Log helpers ------------------------ */
-const AUDIT_KEY = 'hr-audit-log';
-function addAuditEntry(action, detail, userEmail) {
-  try {
-    const log = JSON.parse(localStorage.getItem(AUDIT_KEY) || '[]');
-    log.unshift({ id: Date.now(), ts: new Date().toISOString(), action, detail, by: userEmail });
-    if (log.length > 200) log.splice(200);
-    localStorage.setItem(AUDIT_KEY, JSON.stringify(log));
-  } catch(e) {}
-}
-function getAuditLog() {
-  try { return JSON.parse(localStorage.getItem(AUDIT_KEY) || '[]'); } catch { return []; }
-}
-
-/* -- Push notifications ----------------------- */
-async function requestPushPermission() {
-  if (!('Notification' in window)) return false;
-  if (Notification.permission === 'granted') return true;
-  const perm = await Notification.requestPermission();
-  return perm === 'granted';
-}
-function sendPushNotification(title, body, icon) {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  try { new Notification(title, { body, icon: icon || '' }); } catch(e) {}
-}
-
-
-/* -- Invite Email HTML ------------------------ */
-function inviteEmailHTML(email, company, fromDomain) {
-  const loginUrl = window.location.href.split('?')[0];
-  return `<div style="font-family:Inter,Arial,sans-serif;max-width:580px;margin:0 auto;background:#f8fafc;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0"><div style="background:#1a3a5c;padding:28px 24px;text-align:center"><div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.01em;margin-bottom:4px">Welcome to ${company}</div><div style="color:rgba(255,255,255,0.6);font-size:13px">You've been invited to the HR portal</div></div><div style="padding:32px 24px;text-align:center"><div style="width:64px;height:64px;background:#e3edf6;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:28px">👋</div><p style="font-size:15px;color:#0f172a;margin:0 0 8px">Hi there,</p><p style="font-size:13px;color:#475569;margin:0 0 28px;line-height:1.7">Your HR admin has invited you to <strong>${company}</strong>'s HR portal. You can view your payslips, request leave, and manage your profile.</p><div style="margin-bottom:24px"><p style="font-size:12px;color:#64748b;margin:0 0 4px">Your login email:</p><p style="font-size:14px;font-weight:700;color:#1a3a5c">${email}</p></div><a href="${loginUrl}" style="display:inline-block;background:#1a3a5c;color:#fff;text-decoration:none;padding:14px 32px;border-radius:10px;font-size:14px;font-weight:700;letter-spacing:0.01em">Set Up Your Account →</a><p style="font-size:11px;color:#94a3b8;margin-top:20px">Click the button above to sign up and set your password.</p></div><div style="background:#f1f5f9;padding:12px 24px;border-top:1px solid #e2e8f0;text-align:center"><p style="font-size:11px;color:#94a3b8;margin:0">Nimba People by DithaNimba Holdings</p></div></div>`;
-}
-
 async function sendResendEmail(cfg, to, subject, html) {
   if (!cfg.key || !cfg.from || !to) return;
   try {
@@ -1723,26 +1656,23 @@ function App({
   const [df, setDf] = useState("All");
   const [sf, setSf] = useState("All");
   const [sm, setSm] = useState(false);
+  const [im, setIm] = useState(false); // invite modal
+  const [invEmail, setInvEmail] = useState(""); // invite email
+  const ANNUAL_LEAVE_DAYS = 15; // annual leave allowance per employee
   const [cfgF, setCfgF] = useState({
     key: "",
     from: "",
-    hr: ""
+    hr: "",
+    company: "",
+    logo: ""
   });
   const [cfg, setCfg] = useState({
     key: "",
     from: "",
-    hr: ""
+    hr: "",
+    company: "",
+    logo: ""
   });
-  const [darkMode, setDarkMode] = useState(() => LS.g("hr-dark") || false);
-  const [companyLogo, setCompanyLogo] = useState(() => LS.g("hr-logo") || "");
-  const [companyName, setCompanyName] = useState(() => LS.g("hr-company-name") || "Nimba People");
-  const [auditLog, setAuditLog] = useState(() => getAuditLog());
-  const [showAudit, setShowAudit] = useState(false);
-  const [showBranding, setShowBranding] = useState(false);
-  const [leaveBalances, setLeaveBalances] = useState(() => LS.g("hr-lb") || {});
-  const [inviteEm, setInviteEm] = useState("");
-  const [showInvite, setShowInvite] = useState(false);
-  const [inviting, setInviting] = useState(false);
   const now = new Date();
   const [psm, setPsm] = useState(null);
   const [psPeriod, setPsPeriod] = useState({
@@ -1755,7 +1685,9 @@ function App({
     const c = {
       key: LS.g("hr-cfg-key") || "",
       from: LS.g("hr-cfg-from") || "",
-      hr: LS.g("hr-cfg-hr") || ""
+      hr: LS.g("hr-cfg-hr") || "",
+      company: LS.g("hr-cfg-company") || "",
+      logo: LS.g("hr-cfg-logo") || ""
     };
     setCfg(c);
     setCfgF(c);
@@ -1806,57 +1738,17 @@ function App({
       setRdy(true);
     });
   }, []);
-  
-  // Dark mode effect
-  useEffect(() => {
-    document.body.classList.toggle('dark', darkMode);
-    LS.s("hr-dark", darkMode);
-  }, [darkMode]);
-
-  // Audit helper wrapper
-  function audit(action, detail) {
-    addAuditEntry(action, detail, userEmail);
-    setAuditLog(getAuditLog());
-  }
-
-  // Leave balance helper - returns remaining days for Annual leave
-  const ANNUAL_LEAVE_DAYS = 15;
-  function getLeaveBalance(empId) {
-    if (leaveBalances[empId] !== undefined) return leaveBalances[empId];
-    return ANNUAL_LEAVE_DAYS;
-  }
-  function deductLeaveBalance(empId, lv) {
-    if (lv.type !== 'Annual') return;
-    const days = Math.ceil((new Date(lv.to) - new Date(lv.fr)) / 86400000) + 1;
-    const current = getLeaveBalance(empId);
-    const updated = { ...leaveBalances, [empId]: Math.max(0, current - days) };
-    setLeaveBalances(updated);
-    LS.s("hr-lb", updated);
-  }
-
-  // Send invite email
-  async function sendInvite() {
-    if (!inviteEm) return;
-    setInviting(true);
-    const inviteHtml = inviteEmailHTML(inviteEm, companyName, cfg.from || 'noreply@nimbapeople.co.za');
-    await sendResendEmail(cfg, inviteEm, `You've been invited to ${companyName} HR Portal`, inviteHtml);
-    audit('Invite Sent', `Invite sent to ${inviteEm}`);
-    setInviting(false);
-    setShowInvite(false);
-    setInviteEm("");
-    showToast(`Invite sent to ${inviteEm}`);
-  }
-
-function saveCfg() {
+  function saveCfg() {
     LS.s("hr-cfg-key", cfgF.key);
     LS.s("hr-cfg-from", cfgF.from);
     LS.s("hr-cfg-hr", cfgF.hr);
+    LS.s("hr-cfg-company", cfgF.company);
+    LS.s("hr-cfg-logo", cfgF.logo);
     setCfg({
       ...cfgF
     });
     setSm(false);
     showToast("Settings saved");
-    audit("Settings Updated", "Email settings updated");
   }
   const sv = p => {
     LS.s("hr-p", p);
@@ -1947,7 +1839,6 @@ function saveCfg() {
     }
     setEm(false);
     showToast(ed ? "Employee updated" : "Employee added");
-    audit(ed ? 'Employee Updated' : 'Employee Added', ef.name + ' – ' + ef.dept);
   }
   async function dlE(id) {
     const {
@@ -1958,14 +1849,55 @@ function saveCfg() {
       console.error(error);
       return;
     }
-    const delEmp = emps.find(e => e.id === id);
     setEmps(prev => prev.filter(e => e.id !== id));
     if (vw && vw.id === id) setVw(null);
     showToast("Employee deleted");
-    audit('Employee Deleted', delEmp ? delEmp.name : id);
+  }
+  async function sendInvite() {
+    if (!invEmail) return;
+    // Check if email matches an employee
+    const emp = emps.find(e => e.em.toLowerCase() === invEmail.toLowerCase());
+    if (!emp) {
+      showToast("No employee found with that email");
+      return;
+    }
+    if (!cfg.key || !cfg.from) {
+      showToast("Configure email settings first");
+      setIm(false);
+      setSm(true);
+      return;
+    }
+    const inviteHtml = `<div style="font-family:Inter,Arial,sans-serif;max-width:580px;margin:0 auto;background:#f8fafc;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
+      <div style="background:#1a3a5c;padding:24px 28px"><div style="color:#fff;font-size:18px;font-weight:700;margin-bottom:4px">You're invited to Nimba People</div><div style="color:rgba(255,255,255,0.6);font-size:12px">Your HR portal is ready</div></div>
+      <div style="padding:28px"><p style="font-size:14px;color:#0f172a;margin:0 0 16px">Hi <strong>${emp.name}</strong>,</p>
+      <p style="font-size:13px;color:#475569;margin:0 0 24px;line-height:1.6">Your HR account has been created on <strong>Nimba People</strong>. You can now view your profile, submit leave requests and download your payslips.</p>
+      <div style="text-align:center;margin:28px 0"><a href="https://dithanimbaholdings.co.za" style="background:#1a3a5c;color:#fff;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:700;font-size:14px">Sign In to Nimba People</a></div>
+      <div style="background:#f1f5f9;border-radius:10px;padding:14px 16px;font-size:12px;color:#64748b">Use your email address <strong>${emp.em}</strong> to sign up or sign in. If you already have an account, just sign in.</div></div>
+      <div style="background:#f1f5f9;padding:12px 24px;border-top:1px solid #e2e8f0"><p style="font-size:11px;color:#94a3b8;margin:0">Nimba People by DithaNimba Holdings . Automated invitation.</p></div></div>`;
+    await sendResendEmail(cfg, emp.em, "You're invited to Nimba People - Your HR Portal", inviteHtml);
+    showToast(`Invite sent to ${emp.name}`);
+    setIm(false);
+    setInvEmail("");
+  }
+
+  // Calculate leave balance for an employee
+  function leaveBalance(empId) {
+    const used = lvs.filter(l => l.eid === empId && l.st === "Approved" && l.type === "Annual").reduce((total, l) => {
+      if (!l.fr || !l.to) return total;
+      const diff = Math.ceil((new Date(l.to) - new Date(l.fr)) / (1000 * 60 * 60 * 24)) + 1;
+      return total + diff;
+    }, 0);
+    return {
+      used,
+      remaining: Math.max(0, ANNUAL_LEAVE_DAYS - used),
+      total: ANNUAL_LEAVE_DAYS
+    };
   }
   async function sbL() {
-    if (!lf.eid || !lf.fr || !lf.to) return;
+    if (!lf.eid || !lf.fr || !lf.to) {
+      showToast("Please fill in all required fields");
+      return;
+    }
     const emp = emps.find(e => e.id === lf.eid);
     const nl = {
       id: "l" + Date.now(),
@@ -1976,7 +1908,6 @@ function saveCfg() {
       rs: lf.rs,
       st: "Pending"
     };
-    // Save to Supabase
     const {
       error
     } = await sb.from("nimba_leaves").insert({
@@ -2004,7 +1935,6 @@ function saveCfg() {
       rs: ""
     });
     showToast("Leave request submitted - HR notified");
-    audit('Leave Submitted', (emp ? emp.name : 'Employee') + ' – ' + nl.type + ' ' + D(nl.fr) + ' to ' + D(nl.to));
     if (emp && cfg.key && cfg.from) {
       sendResendEmail(cfg, emp.em, `Leave Request Submitted - ${lf.type} (${D(lf.fr)} to ${D(lf.to)})`, leaveSubmittedEmployeeHTML(emp, nl));
       sendResendEmail(cfg, HR_NOTIFY_EMAIL, `Action Required: Leave Request from ${emp.name}`, leaveSubmittedHRHTML(emp, nl));
@@ -2021,16 +1951,14 @@ function saveCfg() {
       console.error(error);
       return;
     }
-    const lv = lvs.find(l => l.id === id);
-    const emp = lv ? emps.find(e => e.id === lv.eid) : null;
     setLvs(prev => prev.map(l => l.id === id ? {
       ...l,
       st
     } : l));
-    if (st === 'Approved' && lv) deductLeaveBalance(lv.eid, lv);
     showToast(`Leave ${st.toLowerCase()}`);
-    audit(`Leave ${st}`, `${emp ? emp.name : 'Employee'} – ${lv ? lv.type : ''} ${lv ? D(lv.fr)+' to '+D(lv.to) : ''}`);
-    sendPushNotification(`Leave ${st}`, `${(emp && emp.name) ? emp.name + "'s" : 'A'} ${lv ? lv.type : ''} leave has been ${st ? st.toLowerCase() : ''}`);
+    // Email employee the decision
+    const lv = lvs.find(l => l.id === id);
+    const emp = lv ? emps.find(e => e.id === lv.eid) : null;
     if (emp && lv && cfg.key && cfg.from) sendResendEmail(cfg, emp.em, `Your Leave Request has been ${st}`, leaveDecisionHTML(emp, lv, st));
   }
   function rnP() {
@@ -2052,7 +1980,6 @@ function saveCfg() {
     sv(n);
     setPm(false);
     showToast("Payroll processed");
-    audit('Payroll Processed', r.pd + ' – ' + act.length + ' employees, total ' + R(Math.round(tot)));
   }
 
   // Find this user's own employee record (matched by email)
@@ -2165,7 +2092,7 @@ function saveCfg() {
       display: "block",
       lineHeight: 1.1
     }
-  }, companyName || "Nimba People"), /*#__PURE__*/React.createElement("div", {
+  }, "Nimba People"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 9,
       color: "var(--text-muted)",
@@ -2173,11 +2100,7 @@ function saveCfg() {
       fontWeight: 600,
       textTransform: "uppercase"
     }
-  }, "by DithaNimba Holdings")))), companyLogo && /*#__PURE__*/React.createElement("img", {
-    src: companyLogo,
-    style: { height: 28, width: "auto", objectFit: "contain", marginTop: 8, marginLeft: 4 },
-    alt: "logo"
-  }), /*#__PURE__*/React.createElement("nav", {
+  }, "by DithaNimba Holdings")))), /*#__PURE__*/React.createElement("nav", {
     style: {
       flex: 1
     }
@@ -2248,38 +2171,32 @@ function saveCfg() {
     d: IC.cog,
     size: 14,
     col: "#64748b"
-  }), " Email Settings"), isAdmin && /*#__PURE__*/React.createElement("button", {
+  }), " Email Settings"), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-ghost",
-    style: { width: "100%", justifyContent: "flex-start", gap: 8, padding: "8px 10px", fontSize: 12, marginBottom: 6 },
-    onClick: () => setShowBranding(true)
-  }, /*#__PURE__*/React.createElement(Svg, { d: IC.bag, size: 14, col: "#64748b" }), " Branding"), isAdmin && /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-ghost",
-    style: { width: "100%", justifyContent: "flex-start", gap: 8, padding: "8px 10px", fontSize: 12, marginBottom: 6 },
-    onClick: () => setShowAudit(true)
-  }, /*#__PURE__*/React.createElement(Svg, { d: IC.more, size: 14, col: "#64748b" }), " Audit Log"), /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-ghost",
-    style: { width: "100%", justifyContent: "flex-start", gap: 8, padding: "8px 10px", fontSize: 12, marginBottom: 6 },
-    onClick: () => { setDarkMode(d => !d); }
-  }, /*#__PURE__*/React.createElement(Svg, { d: darkMode ? IC.up : IC.dn, size: 14, col: "#64748b" }), darkMode ? " Light Mode" : " Dark Mode"), /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-ghost",
-    style: { width: "100%", justifyContent: "flex-start", gap: 8, padding: "8px 10px", fontSize: 12 },
+    style: {
+      width: "100%",
+      justifyContent: "flex-start",
+      gap: 8,
+      padding: "8px 10px",
+      fontSize: 12
+    },
     onClick: () => sb.auth.signOut()
-  }, /*#__PURE__*/React.createElement(Svg, { d: IC.logout, size: 14, col: "#64748b" }), " Sign Out"))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(Svg, {
+    d: IC.logout,
+    size: 14,
+    col: "#64748b"
+  }), " Sign Out"))), /*#__PURE__*/React.createElement("div", {
     className: "mobile-header"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "mobile-header-title"
   }, PAGE_TITLE[tab]), /*#__PURE__*/React.createElement("div", {
     className: "mobile-header-sub"
-  }, companyName || "Nimba People")), /*#__PURE__*/React.createElement("div", {
+  }, "Nimba People")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
-      gap: 6
+      gap: 8
     }
-  }, /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-ghost",
-    style: { padding: "6px 10px", minHeight: 34 },
-    onClick: () => setDarkMode(d => !d)
-  }, darkMode ? "☀️" : "🌙"), tab === "employees" && isAdmin && /*#__PURE__*/React.createElement("button", {
+  }, tab === "employees" && isAdmin && /*#__PURE__*/React.createElement("button", {
     className: "btn btn-primary",
     style: {
       padding: "8px 14px",
@@ -2600,15 +2517,7 @@ function saveCfg() {
     label: "Status",
     value: myProfile.st,
     color: "#0ea5e9"
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "card",
-    style: { cursor: "pointer" },
-    onClick: async () => { const ok = await requestPushPermission(); showToast(ok ? "Notifications enabled!" : "Notifications blocked in browser settings", ok); }
-  }, /*#__PURE__*/React.createElement("div", { style: { width: 36, height: 36, borderRadius: 9, background: "#f59e0b18", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 } },
-    /*#__PURE__*/React.createElement(Svg, { d: IC.cc, size: 16, col: "#f59e0b" })
-  ), /*#__PURE__*/React.createElement("div", { className: "brand-font stat-value", style: { fontSize: 14, fontWeight: 800, color: "#0f172a", marginBottom: 4 } }, "Notifications"),
-  /*#__PURE__*/React.createElement("div", { className: "stat-label", style: { fontSize: 12, color: "#64748b", fontWeight: 500 } }, "Tap to enable push alerts")
-  )), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement("div", {
     className: "grid-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "card"
@@ -2757,17 +2666,24 @@ function saveCfg() {
       fontSize: 13,
       color: "var(--text-muted)"
     }
-  }, isAdmin ? `${emps.length} members . ${new Set(emps.map(e => e.dept)).size} departments` : myProfile ? `${myProfile.role} . ${myProfile.dept}` : "No profile found")), isAdmin && /*#__PURE__*/React.createElement("button", {
+  }, isAdmin ? `${emps.length} members . ${new Set(emps.map(e => e.dept)).size} departments` : myProfile ? `${myProfile.role} . ${myProfile.dept}` : "No profile found")), isAdmin && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-ghost",
+    onClick: () => setIm(true)
+  }, /*#__PURE__*/React.createElement(Svg, {
+    d: IC.mail,
+    size: 15
+  }), " Invite"), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-primary",
     onClick: addE
   }, /*#__PURE__*/React.createElement(Svg, {
     d: IC.uadd,
     size: 15
-  }), " Add Employee"), isAdmin && /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-ghost",
-    style: { marginLeft: 8 },
-    onClick: () => setShowInvite(true)
-  }, /*#__PURE__*/React.createElement(Svg, { d: IC.mail, size: 15 }), " Invite")), isAdmin && /*#__PURE__*/React.createElement("div", {
+  }), " Add Employee"))), isAdmin && /*#__PURE__*/React.createElement("div", {
     className: "search-row",
     style: {
       display: "flex",
@@ -3169,9 +3085,7 @@ function saveCfg() {
       fontSize: 13,
       color: "var(--text-muted)"
     }
-  }, isAdmin ? `${plv} pending` : "Submit and track your leave requests")), !isAdmin && myProfile && /*#__PURE__*/React.createElement("div", {
-    style: { background: "var(--primary-light)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, fontSize: 13 }
-  }, /*#__PURE__*/React.createElement(Svg, { d: IC.cal, size: 16, col: "var(--primary)" }), /*#__PURE__*/React.createElement("span", null, "Annual leave balance: "), /*#__PURE__*/React.createElement("strong", { style: { color: "var(--primary)" } }, getLeaveBalance(myProfile.id), " days remaining")), /*#__PURE__*/React.createElement("button", {
+  }, isAdmin ? `${plv} pending` : "Submit and track your leave requests")), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-primary",
     onClick: () => {
       if (!isAdmin && myProfile) setLf(f => ({
@@ -3183,7 +3097,37 @@ function saveCfg() {
   }, /*#__PURE__*/React.createElement(Svg, {
     d: IC.plus,
     size: 15
-  }), " Request Leave")), isAdmin && plv > 0 && /*#__PURE__*/React.createElement("div", {
+  }), " Request Leave")), !isAdmin && myProfile && (() => {
+    const bal = leaveBalance(myProfile.id);
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "repeat(3,1fr)",
+        gap: 12,
+        marginBottom: 20
+      }
+    }, [["Annual Allowance", bal.total + " days", "#4f46e5"], ["Days Used", bal.used + " days", "#f59e0b"], ["Remaining", bal.remaining + " days", bal.remaining < 3 ? "#ef4444" : "#10b981"]].map(([l, v, c]) => /*#__PURE__*/React.createElement("div", {
+      key: l,
+      className: "card",
+      style: {
+        textAlign: "center",
+        padding: "14px 10px"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 20,
+        fontWeight: 800,
+        color: c,
+        fontFamily: "Syne,sans-serif"
+      }
+    }, v), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "var(--text-muted)",
+        marginTop: 4
+      }
+    }, l))));
+  })(), isAdmin && plv > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#fffbeb",
       border: "1px solid #fde68a",
@@ -3322,7 +3266,7 @@ function saveCfg() {
       fontSize: 13,
       color: "var(--text-muted)"
     }
-  }, isAdmin ? "Generate & download payslips" : "Your monthly payslip history")), /*#__PURE__*/React.createElement("div", {
+  }, "Generate & download payslips")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -3522,28 +3466,7 @@ function saveCfg() {
       d: IC.slip,
       size: 14
     }), " View & Download Payslip"));
-  })), !isAdmin && myProfile && /*#__PURE__*/React.createElement("div", {
-    className: "card",
-    style: { marginTop: 20 }
-  }, /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 } },
-    /*#__PURE__*/React.createElement("h3", { className: "brand-font", style: { fontSize: 15, fontWeight: 700 } }, "Payslip History"),
-    /*#__PURE__*/React.createElement("span", { style: { fontSize: 12, color: "var(--text-muted)" } }, "Last 12 months")
-  ), [...Array(12)].map((_, i) => {
-    const d = new Date(); d.setMonth(d.getMonth() - i);
-    const m = d.getMonth(); const y = d.getFullYear();
-    const slip = calcSlip(myProfile.sal);
-    return /*#__PURE__*/React.createElement("div", {
-      key: i,
-      style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid var(--border)", cursor: "pointer" },
-      onClick: () => { setPsPeriod({ m, y }); setPsm(myProfile); }
-    }, /*#__PURE__*/React.createElement("div", null,
-      /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, fontWeight: 600 } }, MONTHS[m] + " " + y),
-      /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, color: "var(--text-muted)", marginTop: 2 } }, "Net: " + R(slip.net))
-    ), /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
-      /*#__PURE__*/React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "var(--primary)" } }, R(slip.gross)),
-      /*#__PURE__*/React.createElement(Svg, { d: IC.cr, size: 14, col: "var(--text-muted)" })
-    ));
-  })), tab === "analytics" && /*#__PURE__*/React.createElement("section", null, /*#__PURE__*/React.createElement("header", {
+  }))), tab === "analytics" && /*#__PURE__*/React.createElement("section", null, /*#__PURE__*/React.createElement("header", {
     style: {
       marginBottom: 20
     }
@@ -3666,44 +3589,7 @@ function saveCfg() {
         borderRadius: 4
       }
     })));
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "grid-2",
-    style: { marginTop: 20 }
-  }, /*#__PURE__*/React.createElement("div", { className: "card" },
-    /*#__PURE__*/React.createElement("h3", { className: "brand-font", style: { fontSize: 15, fontWeight: 700, marginBottom: 18 } }, "Department Breakdown"),
-    DEPTS.filter(d => emps.some(e => e.dept === d)).map((d, i) => {
-      const dEmps = emps.filter(e => e.dept === d);
-      const active = dEmps.filter(e => e.st === "Active" || e.st === "Probation").length;
-      const avgSal = dEmps.length ? dEmps.reduce((s, e) => s + e.sal, 0) / dEmps.length : 0;
-      const leaveCnt = lvs.filter(l => dEmps.some(e => e.id === l.eid) && l.st === "Approved").length;
-      return /*#__PURE__*/React.createElement("div", { key: d, style: { padding: "10px 0", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 } },
-        /*#__PURE__*/React.createElement("div", { style: { width: 10, height: 10, borderRadius: "50%", background: AC[i % AC.length], flexShrink: 0 } }),
-        /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 0 } },
-          /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, fontWeight: 600 } }, d),
-          /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, color: "var(--text-muted)", marginTop: 2 } }, active + " active · avg " + R(Math.round(avgSal / 12)) + "/mo · " + leaveCnt + " leaves approved")
-        ),
-        /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "var(--primary)" } }, dEmps.length, /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, fontWeight: 400, color: "var(--text-muted)" } }, " staff"))
-      );
-    })
-  ), /*#__PURE__*/React.createElement("div", { className: "card" },
-    /*#__PURE__*/React.createElement("h3", { className: "brand-font", style: { fontSize: 15, fontWeight: 700, marginBottom: 18 } }, "Leave Overview by Dept"),
-    DEPTS.filter(d => emps.some(e => e.dept === d)).map((d, i) => {
-      const dEmps = emps.filter(e => e.dept === d);
-      const total = lvs.filter(l => dEmps.some(e => e.id === l.eid)).length;
-      const pending = lvs.filter(l => dEmps.some(e => e.id === l.eid) && l.st === "Pending").length;
-      const maxLeaves = Math.max(...DEPTS.map(x => { const xe = emps.filter(e => e.dept === x); return lvs.filter(l => xe.some(e => e.id === l.eid)).length; }), 1);
-      return /*#__PURE__*/React.createElement("div", { key: d, style: { marginBottom: 12 } },
-        /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 4 } },
-          /*#__PURE__*/React.createElement("span", { style: { fontSize: 12, fontWeight: 500 } }, d),
-          /*#__PURE__*/React.createElement("span", { style: { fontSize: 12, color: "var(--text-muted)" } }, total + " total" + (pending > 0 ? ", " + pending + " pending" : ""))
-        ),
-        /*#__PURE__*/React.createElement("div", { style: { background: "var(--border)", borderRadius: 4, height: 7 } },
-          /*#__PURE__*/React.createElement("div", { style: { width: (total / maxLeaves * 100) + "%", height: "100%", background: AC[i % AC.length], borderRadius: 4 } })
-        )
-      );
-    })
-  ))),
-  /*#__PURE__*/React.createElement("nav", {
+  })))))), /*#__PURE__*/React.createElement("nav", {
     className: "bottom-nav"
   }, NAVS.map(([id, ic, lbl]) => /*#__PURE__*/React.createElement("div", {
     key: id,
@@ -3882,7 +3768,7 @@ function saveCfg() {
     d: IC.cd,
     size: 14,
     col: "#64748b"
-  })))) : /*#__PURE__*/React.createElement("div", {
+  })))) : myProfile ? /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--primary-light)",
       borderRadius: 10,
@@ -3893,7 +3779,7 @@ function saveCfg() {
       gap: 10
     }
   }, /*#__PURE__*/React.createElement(Av, {
-    s: myProfile && myProfile.av ? myProfile.av : '??' || "??",
+    s: myProfile.av || "??",
     z: 32
   }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3901,12 +3787,22 @@ function saveCfg() {
       fontWeight: 600,
       color: "var(--text-main)"
     }
-  }, myProfile && myProfile.name ? myProfile.name : userEmail), /*#__PURE__*/React.createElement("div", {
+  }, myProfile.name), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: "var(--text-muted)"
     }
-  }, myProfile ? myProfile.role : '', " . ", myProfile ? myProfile.dept : ''))), /*#__PURE__*/React.createElement(FS, {
+  }, myProfile.role, " . ", myProfile.dept))) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#fff7ed",
+      border: "1px solid #fed7aa",
+      borderRadius: 10,
+      padding: "12px 14px",
+      marginBottom: 16,
+      fontSize: 13,
+      color: "#9a3412"
+    }
+  }, "Your account (", userEmail, ") is not linked to an employee record. Ask your HR admin to set your email in your employee profile."), !isAdmin && !myProfile ? null : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(FS, {
     label: "Leave Type",
     value: lf.type,
     onChange: v => setLf(f => ({
@@ -3914,9 +3810,7 @@ function saveCfg() {
       type: v
     })),
     opts: LT
-  }), lf.type === 'Annual' && lf.eid && /*#__PURE__*/React.createElement("div", {
-    style: { background: "var(--primary-light)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--primary)", marginBottom: 4, fontWeight: 500 }
-  }, "Annual leave balance for this employee: ", /*#__PURE__*/React.createElement("strong", null, getLeaveBalance(lf.eid), " days remaining")), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("div", {
     className: "modal-grid"
   }, /*#__PURE__*/React.createElement(FI, {
     label: "From Date",
@@ -3958,7 +3852,17 @@ function saveCfg() {
   }, "Cancel"), /*#__PURE__*/React.createElement("button", {
     type: "submit",
     className: "btn btn-primary"
-  }, "Submit Request"))), /*#__PURE__*/React.createElement(Modal, {
+  }, "Submit Request"))), !isAdmin && !myProfile && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn btn-ghost",
+    onClick: () => setLm(false)
+  }, "Close"))), /*#__PURE__*/React.createElement(Modal, {
     open: pm,
     onClose: () => setPm(false),
     onSubmit: rnP,
@@ -4158,16 +4062,78 @@ function saveCfg() {
   }), " Edit")))), /*#__PURE__*/React.createElement(Modal, {
     open: sm,
     onClose: () => setSm(false),
-    title: "Email Settings",
-    w: 480
+    title: "Company Settings",
+    w: 520
   }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: "var(--text-muted)",
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      marginBottom: 12
+    }
+  }, "Branding"), /*#__PURE__*/React.createElement(FI, {
+    label: "Company Name",
+    value: cfgF.company,
+    onChange: v => setCfgF(f => ({
+      ...f,
+      company: v
+    })),
+    ph: "DithaNimba Holdings"
+  }), /*#__PURE__*/React.createElement(FI, {
+    label: "Logo URL (optional)",
+    value: cfgF.logo,
+    onChange: v => setCfgF(f => ({
+      ...f,
+      logo: v
+    })),
+    ph: "https://yoursite.co.za/logo.png"
+  }), cfgF.logo && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: -8,
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("img", {
+    src: cfgF.logo,
+    alt: "Logo preview",
+    style: {
+      height: 40,
+      borderRadius: 6,
+      border: "1px solid var(--border)",
+      padding: 4
+    },
+    onError: e => e.target.style.display = 'none'
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: "1px solid var(--border)",
+      marginBottom: 20
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: "var(--text-muted)",
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      marginBottom: 12
+    }
+  }, "Email Notifications (Resend)"), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--bg)",
       border: "1px solid var(--border)",
       borderRadius: 10,
-      padding: "12px 14px",
-      marginBottom: 18,
-      fontSize: 13,
+      padding: "10px 14px",
+      marginBottom: 14,
+      fontSize: 12,
       color: "var(--text-muted)",
       lineHeight: 1.6
     }
@@ -4175,7 +4141,7 @@ function saveCfg() {
     style: {
       color: "var(--text-main)"
     }
-  }, "Resend"), ". Get your free key at resend.com. The From Email must be a verified sender."), /*#__PURE__*/React.createElement(FI, {
+  }, "Resend"), ". Get your free key at resend.com."), /*#__PURE__*/React.createElement(FI, {
     label: "Resend API Key",
     value: cfgF.key,
     onChange: v => setCfgF(f => ({
@@ -4184,7 +4150,7 @@ function saveCfg() {
     })),
     ph: "re_xxxxxxxxxxxx"
   }), /*#__PURE__*/React.createElement(FI, {
-    label: "From Email",
+    label: "From Email (verified sender)",
     value: cfgF.from,
     onChange: v => setCfgF(f => ({
       ...f,
@@ -4202,7 +4168,7 @@ function saveCfg() {
     ph: "hr@yourcompany.co.za",
     type: "email",
     req: true
-  }), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 10,
@@ -4216,70 +4182,102 @@ function saveCfg() {
     type: "button",
     className: "btn btn-primary",
     onClick: saveCfg
-  }, "Save Settings"))), psm && /*#__PURE__*/React.createElement(PayslipViewer, {
+  }, "Save Settings"))), /*#__PURE__*/React.createElement(Modal, {
+    open: im,
+    onClose: () => {
+      setIm(false);
+      setInvEmail("");
+    },
+    title: "Invite Employee",
+    w: 440
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "var(--primary-light)",
+      borderRadius: 10,
+      padding: "12px 14px",
+      marginBottom: 20,
+      fontSize: 13,
+      color: "var(--primary)",
+      lineHeight: 1.6
+    }
+  }, "Enter the employee's email address. They'll receive a link to create their account on Nimba People. The email must match the one saved in their employee record."), /*#__PURE__*/React.createElement(FI, {
+    label: "Employee Email",
+    value: invEmail,
+    onChange: setInvEmail,
+    type: "email",
+    ph: "employee@company.co.za",
+    req: true
+  }), invEmail && !emps.find(e => e.em.toLowerCase() === invEmail.toLowerCase()) && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#dc2626",
+      fontSize: 12,
+      marginTop: -12,
+      marginBottom: 12
+    }
+  }, "No employee found with this email address."), invEmail && emps.find(e => e.em.toLowerCase() === invEmail.toLowerCase()) && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#dcfce7",
+      color: "#166534",
+      fontSize: 12,
+      padding: "8px 12px",
+      borderRadius: 8,
+      marginTop: -8,
+      marginBottom: 12
+    }
+  }, "Found: ", /*#__PURE__*/React.createElement("strong", null, emps.find(e => e.em.toLowerCase() === invEmail.toLowerCase()).name)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10,
+      justifyContent: "flex-end"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn btn-ghost",
+    onClick: () => {
+      setIm(false);
+      setInvEmail("");
+    }
+  }, "Cancel"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn btn-primary",
+    onClick: sendInvite,
+    disabled: !cfg.key || !cfg.from
+  }, /*#__PURE__*/React.createElement(Svg, {
+    d: IC.mail,
+    size: 14
+  }), " Send Invite")), (!cfg.key || !cfg.from) && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      fontSize: 12,
+      color: "var(--text-muted)",
+      marginTop: 8
+    }
+  }, "Configure email settings first to send invites.")), psm && /*#__PURE__*/React.createElement(PayslipViewer, {
     emp: psm,
     period: psPeriod,
     onClose: () => setPsm(null),
     cfg: cfg,
-    companyLogo: companyLogo,
-    showToast: showToast
-  }),
-  /*#__PURE__*/React.createElement(Modal, { open: showBranding, onClose: () => setShowBranding(false), title: "Branding Settings", w: 460 },
-    /*#__PURE__*/React.createElement("div", null,
-      /*#__PURE__*/React.createElement("div", { style: { marginBottom: 16 } },
-        /*#__PURE__*/React.createElement("label", { style: LB }, "Company Name"),
-        /*#__PURE__*/React.createElement("input", { className: "input", value: companyName, onChange: e => setCompanyName(e.target.value), placeholder: "Nimba People" })
-      ),
-      /*#__PURE__*/React.createElement("div", { style: { marginBottom: 16 } },
-        /*#__PURE__*/React.createElement("label", { style: LB }, "Company Logo"),
-        companyLogo && /*#__PURE__*/React.createElement("div", { style: { marginBottom: 10, padding: 12, background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 } },
-          /*#__PURE__*/React.createElement("img", { src: companyLogo, style: { height: 40, objectFit: "contain" }, alt: "logo" }),
-          /*#__PURE__*/React.createElement("button", { className: "btn btn-danger", style: { fontSize: 12, padding: "4px 10px", minHeight: 30 }, onClick: () => { setCompanyLogo(""); LS.s("hr-logo", ""); } }, "Remove")
-        ),
-        /*#__PURE__*/React.createElement("input", { type: "file", accept: "image/*", style: { fontSize: 13 }, onChange: e => {
-          const f = e.target.files[0];
-          if (!f) return;
-          const rd = new FileReader();
-          rd.onload = ev => { const d = ev.target.result; setCompanyLogo(d); LS.s("hr-logo", d); };
-          rd.readAsDataURL(f);
-        }})
-      ),
-      /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "var(--text-muted)", marginBottom: 20, lineHeight: 1.6 } }, "Your logo will appear on payslips, in the sidebar, and on email templates."),
-      /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "flex-end" } },
-        /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost", onClick: () => setShowBranding(false) }, "Cancel"),
-        /*#__PURE__*/React.createElement("button", { className: "btn btn-primary", onClick: () => { LS.s("hr-company-name", companyName); setShowBranding(false); showToast("Branding saved"); audit("Branding Updated", companyName); } }, "Save")
-      )
-    )
-  ),
-  /*#__PURE__*/React.createElement(Modal, { open: showAudit, onClose: () => setShowAudit(false), title: "Audit Log", w: 560 },
-    /*#__PURE__*/React.createElement("div", null,
-      auditLog.length === 0 && /*#__PURE__*/React.createElement("div", { style: { textAlign: "center", color: "var(--text-muted)", padding: "30px 0", fontSize: 13 } }, "No activity recorded yet"),
-      /*#__PURE__*/React.createElement("div", { style: { maxHeight: 420, overflowY: "auto" } },
-        auditLog.map(entry => /*#__PURE__*/React.createElement("div", { key: entry.id, style: { display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--border)" } },
-          /*#__PURE__*/React.createElement("div", { style: { width: 8, height: 8, borderRadius: "50%", background: "var(--primary)", marginTop: 5, flexShrink: 0 } }),
-          /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 0 } },
-            /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, fontWeight: 600 } }, entry.action),
-            /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "var(--text-muted)", marginTop: 2 } }, entry.detail)
-          ),
-          /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, color: "var(--text-muted)", flexShrink: 0 } }, new Date(entry.ts).toLocaleString("en-ZA", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" }))
-        ))
-      ),
-      auditLog.length > 0 && /*#__PURE__*/React.createElement("div", { style: { marginTop: 16, display: "flex", justifyContent: "flex-end" } },
-        /*#__PURE__*/React.createElement("button", { className: "btn btn-danger", style: { fontSize: 12 }, onClick: () => { localStorage.removeItem("hr-audit-log"); setAuditLog([]); } }, "Clear Log")
-      )
-    )
-  ),
-  /*#__PURE__*/React.createElement(Modal, { open: showInvite, onClose: () => setShowInvite(false), title: "Invite Employee", w: 440 },
-    /*#__PURE__*/React.createElement("div", null,
-      /*#__PURE__*/React.createElement("div", { style: { background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "12px 14px", marginBottom: 18, fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 } }, "An invite email will be sent with a signup link. Once they create their account, ask them to provide you their login email so you can link it to their employee record."),
-      /*#__PURE__*/React.createElement(FI, { label: "Employee Email", value: inviteEm, onChange: v => setInviteEm(v), type: "email", ph: "employee@company.co.za", req: true }),
-      /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "flex-end" } },
-        /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost", onClick: () => setShowInvite(false) }, "Cancel"),
-        /*#__PURE__*/React.createElement("button", { className: "btn btn-primary", onClick: sendInvite, disabled: inviting || !inviteEm }, inviting ? "Sending..." : "Send Invite")
-      )
-    )
-  )
-  ))));
+    onEmail: (emp, periodStr, slip) => {
+      const html = `<div style="font-family:Inter,Arial,sans-serif;max-width:580px;margin:0 auto">
+        <div style="background:#1a3a5c;padding:22px 24px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center">
+          <div><div style="color:#fff;font-size:17px;font-weight:700">Nimba People</div><div style="color:#c9a84c;font-size:10px;letter-spacing:0.1em">PAYSLIP - ${periodStr}</div></div>
+          <div style="color:#fff;font-size:13px;font-weight:700">NET PAY: R ${slip.net.toLocaleString('en-ZA')}</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-top:none;padding:24px;border-radius:0 0 12px 12px">
+          <p style="font-size:14px;color:#0f172a;margin:0 0 20px">Hi <strong>${emp.name}</strong>, please find your payslip for <strong>${periodStr}</strong> below.</p>
+          <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+            <tr style="background:#f8fafc"><td style="padding:10px 14px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">Gross Pay</td><td style="padding:10px 14px;font-size:14px;font-weight:700;color:#16a34a;text-align:right">R ${slip.gross.toLocaleString('en-ZA')}</td></tr>
+            <tr><td style="padding:10px 14px;font-size:12px;color:#64748b;border-top:1px solid #f1f5f9">PAYE (estimated)</td><td style="padding:10px 14px;font-size:13px;color:#dc2626;text-align:right;border-top:1px solid #f1f5f9">-R ${slip.paye.toLocaleString('en-ZA')}</td></tr>
+            <tr style="background:#f8fafc"><td style="padding:10px 14px;font-size:12px;color:#64748b;border-top:1px solid #f1f5f9">UIF (1%)</td><td style="padding:10px 14px;font-size:13px;color:#dc2626;text-align:right;border-top:1px solid #f1f5f9">-R ${slip.uif.toLocaleString('en-ZA')}</td></tr>
+            <tr style="background:#1a3a5c"><td style="padding:12px 14px;font-size:13px;font-weight:700;color:#fff">Net Pay</td><td style="padding:12px 14px;font-size:16px;font-weight:800;color:#fff;text-align:right">R ${slip.net.toLocaleString('en-ZA')}</td></tr>
+          </table>
+          <p style="font-size:11px;color:#94a3b8;margin:0">PAYE is estimated based on 2024/25 SA tax tables. This payslip is confidential. Generated by Nimba People.</p>
+        </div></div>`;
+      sendResendEmail(cfg, emp.em, `Your Payslip - ${periodStr}`, html);
+      showToast(`Payslip emailed to ${emp.name}`);
+      setPsm(null);
+    }
+  }));
 }
 ReactDOM.createRoot(document.getElementById("root")).render( /*#__PURE__*/React.createElement(AuthGate, null, /*#__PURE__*/React.createElement(App, null)));
 </script>
