@@ -1,0 +1,56 @@
+{
+  "name": "Nimba People",
+  "short_name": "Nimba People",
+  "description": "HR & ERP platform by DithaNimba Holdings",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#1a3a5c",
+  "theme_color": "#1a3a5c",
+  "lang": "en-ZA",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Employees",
+      "short_name": "Employees",
+      "description": "View all employees",
+      "url": "/?tab=employees",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Leave Requests",
+      "short_name": "Leave",
+      "description": "Manage leave requests",
+      "url": "/?tab=leaves",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Payslips",
+      "short_name": "Payslips",
+      "description": "View payslips",
+      "url": "/?tab=payslips",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
