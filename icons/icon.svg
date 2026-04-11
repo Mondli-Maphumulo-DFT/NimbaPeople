@@ -1,1 +1,14 @@
-
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Navy background -->
+  <rect width="512" height="512" rx="112" fill="#1a3a5c"/>
+  <!-- Briefcase icon centred, gold stroke -->
+  <g transform="translate(96, 136)">
+    <rect x="16" y="72" width="288" height="192" rx="24"
+      fill="none" stroke="#C9A84C" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M208 72V48a24 24 0 00-24-24h-64a24 24 0 00-24 24v24"
+      fill="none" stroke="#C9A84C" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M16 168h288"
+      stroke="#C9A84C" stroke-width="24" stroke-linecap="round"/>
+  </g>
+  <!-- Subtle DithaNimba text -->
+</svg>
