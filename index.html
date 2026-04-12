@@ -254,10 +254,14 @@ body.has-topbar{padding-top:calc(env(safe-area-inset-top) + 40px) !important}
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script>
 // Supabase init outside Babel so it never gets transpiled
-window.__sb = window.supabase.createClient(
-  'https://tpnppkcknqzjamwkqugo.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwbnBwa2NrbnF6amFtd2txdWdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzExNzQsImV4cCI6MjA5MDQ0NzE3NH0.mQd7fMQle3lzr8ehKkOVwgzbTNoMoIkYwp8cqSFYR_k'
-);
+// Supabase anon key — this is intentionally a PUBLIC anon key.
+// Security is enforced via Row Level Security (RLS) policies on the database.
+// See: https://supabase.com/docs/guides/api/api-keys
+// To rotate credentials: update SUPABASE_URL and SUPABASE_ANON_KEY
+// in Netlify environment variables (Site config → Environment variables).
+const _SUPABASE_URL = window.__SUPABASE_URL || 'https://tpnppkcknqzjamwkqugo.supabase.co';
+const _SUPABASE_KEY = window.__SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwbnBwa2NrbnF6amFtd2txdWdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzExNzQsImV4cCI6MjA5MDQ0NzE3NH0.mQd7fMQle3lzr8ehKkOVwgzbTNoMoIkYwp8cqSFYR_k';
+window.__sb = window.supabase.createClient(_SUPABASE_URL, _SUPABASE_KEY);
 </script>
 <script>
 const {
