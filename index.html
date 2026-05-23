@@ -2024,7 +2024,7 @@ function PaymentWall({ session, subStatus, subData, onPaid }) {
   ));
 }
 
-function sendResendEmail(cfg, to, subject, html) {
+async function sendResendEmail(cfg, to, subject, html) {
   if (!cfg.key || !cfg.from || !to) return;
   try {
     await fetch("https://api.resend.com/emails", {
@@ -4681,7 +4681,7 @@ function App({
     value: cfgF.psk || "",
     onChange: v => setCfgF(f => ({ ...f, psk: v })),
     ph: "pk_live_xxxxxxxxxxxx"
-  })), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 10,
