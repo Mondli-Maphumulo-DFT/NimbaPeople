@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
-<title>Nimba People – HR Management</title>
+<title>People – HR Management by DithaNimba Holdings</title>
 <!-- PWA -->
 <link rel="manifest" href="/manifest.json"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="apple-mobile-web-app-title" content="Nimba People"/>
+<meta name="apple-mobile-web-app-title" content="People"/>
 <meta name="theme-color" content="#1a3a5c"/>
-<meta name="description" content="Nimba People HR & ERP platform by DithaNimba Holdings"/>
+<meta name="description" content="People – HR &amp; ERP platform by DithaNimba Holdings"/>
 <!-- Apple touch icon (192x192 navy briefcase) -->
 <link rel="apple-touch-icon" href="/icons/icon-192.png"/>
 <!-- iOS splash screens -->
@@ -219,6 +219,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
 /* Update SW notification padding */
 body.has-topbar{padding-top:calc(env(safe-area-inset-top) + 40px) !important}
 </style>
+<script src="https://js.paystack.co/v1/inline.js"></script>
 </head>
 <body>
 
@@ -230,7 +231,7 @@ body.has-topbar{padding-top:calc(env(safe-area-inset-top) + 40px) !important}
 
 <!-- Update available -->
 <div id="update-bar">
-  <span>A new version of Nimba People is available</span>
+  <span>A new version of People is available</span>
   <button id="update-now">Update now</button>
 </div>
 
@@ -240,7 +241,7 @@ body.has-topbar{padding-top:calc(env(safe-area-inset-top) + 40px) !important}
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><path d="M2 12h20"/></svg>
   </div>
   <div class="install-text">
-    <strong>Add Nimba People to Home Screen</strong>
+    <strong>Add People to Home Screen</strong>
     <span>Install for a full app experience with offline access</span>
     <div class="install-steps">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
@@ -269,6 +270,8 @@ const sb = window.__sb;
 
 /* -- Admin config ----------------------------- */
 const ADMIN_EMAIL = 'mondliwes@gmail.com';
+// Paystack public key — set via window.__PAYSTACK_KEY (Netlify env) or Company Settings
+const PAYSTACK_PUBLIC_KEY = window.__PAYSTACK_KEY || '';
 // HR_NOTIFY_EMAIL is now read from cfg.hr (Company Settings → HR Manager Email)
 
 /* -- Auth Gate ------------------------------- */
@@ -276,6 +279,9 @@ function AuthGate({
   children
 }) {
   const [session, setSession] = useState(undefined);
+  const [subStatus, setSubStatus] = useState(null); // null=loading active expired suspended
+  const [subData, setSubData] = useState(null);
+  const [subLoading, setSubLoading] = useState(false);
   useEffect(() => {
     sb.auth.getSession().then(({
       data
@@ -288,6 +294,15 @@ function AuthGate({
     return () => subscription.unsubscribe();
   }, []);
   if (session === undefined) return /*#__PURE__*/React.createElement(Splash, null);
+  // Payment wall — only shown when subscription is loaded and not active
+  if (session && subStatus && subStatus !== 'active' && subStatus !== 'trial') {
+    return /*#__PURE__*/React.createElement(PaymentWall, {
+      session: session,
+      subStatus: subStatus,
+      subData: subData,
+      onPaid: () => setSubStatus('active')
+    });
+  }
   if (!session) return /*#__PURE__*/React.createElement(LoginScreen, null);
   return React.cloneElement(children, {
     userEmail: session && session.user ? session.user.email : '' || ''
@@ -341,7 +356,7 @@ function Splash() {
       fontWeight: 800,
       color: "#fff"
     }
-  }, "Nimba People"), /*#__PURE__*/React.createElement("div", {
+  }, "People"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: "rgba(255,255,255,0.5)",
@@ -411,7 +426,7 @@ function LoginScreen() {
         publicKey: {
           challenge: crypto.getRandomValues(new Uint8Array(32)),
           rp: {
-            name: 'Nimba People',
+            name: 'People',
             id: window.location.hostname
           },
           user: {
@@ -552,7 +567,7 @@ function LoginScreen() {
       color: "#fff",
       letterSpacing: "-0.01em"
     }
-  }, "Nimba People"), /*#__PURE__*/React.createElement("div", {
+  }, "People"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: "rgba(255,255,255,0.45)",
@@ -1101,7 +1116,7 @@ function genPayslipPDF(emp, periodStr, slip) {
   doc.setTextColor(148, 163, 184);
   doc.setFontSize(8);
   doc.text('PAYE is an estimate based on 2024/25 South African income tax tables. Confidential.', M, y);
-  doc.text(`Generated ${new Date().toLocaleDateString('en-ZA')}  .  Nimba People HR System`, M, y + 5);
+  doc.text(`Generated ${new Date().toLocaleDateString('en-ZA')}  .  People HR System · DithaNimba Holdings`, M, y + 5);
   doc.save(`payslip-${emp.name.replace(/ /g, '-')}-${periodStr.replace(/ /g, '-')}.pdf`);
 }
 
@@ -1807,7 +1822,209 @@ function useIsMobile() {
 }
 
 /* -- Email helpers ---------------------------- */
-async function sendResendEmail(cfg, to, subject, html) {
+async // ══════════════════════════════════════════════
+// SUBSCRIPTION CHECK
+// ══════════════════════════════════════════════
+async function checkSubscriptionDB() {
+  try {
+    const { data, error } = await sb.from('nimba_subscription')
+      .select('*').order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (error || !data) return { status: 'active' }; // no table = assume active (first deploy)
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    if (data.status === 'trial') {
+      const trialEnd = new Date(data.trial_ends_at);
+      if (today > trialEnd) return { ...data, status: 'expired' };
+      return { ...data, status: 'trial' };
+    }
+    if (data.status === 'active' && data.next_billing_date) {
+      const billing = new Date(data.next_billing_date);
+      // 3-day grace period
+      const grace = new Date(billing);
+      grace.setDate(grace.getDate() + 3);
+      if (today > grace) return { ...data, status: 'expired' };
+    }
+    return data;
+  } catch(_) {
+    return { status: 'active' }; // network error = don't block
+  }
+}
+
+// ══════════════════════════════════════════════
+// PAYMENT WALL COMPONENT
+// ══════════════════════════════════════════════
+function PaymentWall({ session, subStatus, subData, onPaid }) {
+  const isAdmin = session?.user?.email === ADMIN_EMAIL;
+  const [agreed, setAgreed] = React.useState(false);
+  const [paying, setPaying] = React.useState(false);
+  const [paystackKey, setPaystackKey] = React.useState('');
+
+  React.useEffect(() => {
+    // Load Paystack key from settings
+    sb.from('nimba_settings').select('key,value').then(({ data }) => {
+      if (data) {
+        const map = Object.fromEntries(data.map(r => [r.key, r.value]));
+        setPaystackKey(map['paystack_public_key'] || PAYSTACK_PUBLIC_KEY);
+      }
+    });
+  }, []);
+
+  if (!isAdmin) {
+    // Employees see a simpler message
+    return /*#__PURE__*/React.createElement('div', {
+      style: { minHeight:'100vh', background:'#f8fafc', display:'flex', alignItems:'center', justifyContent:'center', padding: 24 }
+    }, /*#__PURE__*/React.createElement('div', {
+      style: { maxWidth:420, textAlign:'center' }
+    },
+      /*#__PURE__*/React.createElement('div', {
+        style: { width:64, height:64, background:'#1a3a5c', borderRadius:16, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px' }
+      }, /*#__PURE__*/React.createElement('svg', { width:28, height:28, viewBox:'0 0 24 24', fill:'none', stroke:'#C9A84C', strokeWidth:2, strokeLinecap:'round', strokeLinejoin:'round' },
+        /*#__PURE__*/React.createElement('rect', { x:2, y:7, width:20, height:14, rx:2 }),
+        /*#__PURE__*/React.createElement('path', { d:'M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2' }),
+        /*#__PURE__*/React.createElement('path', { d:'M2 12h20' })
+      )),
+      /*#__PURE__*/React.createElement('div', { style:{ fontSize:22, fontWeight:700, color:'#1a3a5c', marginBottom:8 } }, 'Service Temporarily Unavailable'),
+      /*#__PURE__*/React.createElement('div', { style:{ fontSize:14, color:'#64748b', lineHeight:1.7, marginBottom:24 } },
+        'This service is currently unavailable. Please contact your HR administrator to restore access.'
+      ),
+      /*#__PURE__*/React.createElement('button', {
+        onClick: () => sb.auth.signOut(),
+        style: { background:'none', border:'1px solid #e2e8f0', borderRadius:8, padding:'10px 20px', fontSize:13, color:'#64748b', cursor:'pointer' }
+      }, 'Sign Out')
+    ));
+  }
+
+  // Admin sees payment wall
+  const amount = subData?.amount || 150000; // R1,500 in kobo
+  const planLabel = subData?.plan === 'annual' ? 'Annual Plan' : 'Starter Plan';
+  const amountZAR = (amount / 100).toLocaleString('en-ZA', { style:'currency', currency:'ZAR', minimumFractionDigits:0 });
+  const billingFreq = subData?.plan === 'annual' ? 'year' : 'month';
+
+  function handlePay() {
+    if (!agreed || !paystackKey) return;
+    setPaying(true);
+    const handler = window.PaystackPop.setup({
+      key: paystackKey,
+      email: session.user.email,
+      amount: amount,
+      currency: 'ZAR',
+      ref: 'people_' + Date.now(),
+      metadata: { custom_fields: [{ display_name: 'Plan', variable_name: 'plan', value: planLabel }] },
+      onSuccess: async function(transaction) {
+        // Record payment in Supabase
+        const today = new Date();
+        const next = new Date(today);
+        subData?.plan === 'annual' ? next.setFullYear(next.getFullYear() + 1) : next.setMonth(next.getMonth() + 1);
+        await sb.from('nimba_subscription').upsert({
+          id: subData?.id,
+          status: 'active',
+          plan: subData?.plan || 'starter',
+          amount: amount,
+          billing_email: session.user.email,
+          next_billing_date: next.toISOString().split('T')[0],
+          last_payment_ref: transaction.reference,
+          last_payment_date: today.toISOString().split('T')[0],
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+        setPaying(false);
+        onPaid();
+      },
+      onCancel: function() { setPaying(false); }
+    });
+    handler.openIframe();
+  }
+
+  return /*#__PURE__*/React.createElement('div', {
+    style: { minHeight:'100vh', background:'#f8fafc', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }
+  }, /*#__PURE__*/React.createElement('div', {
+    style: { maxWidth:480, width:'100%', background:'#fff', borderRadius:16, border:'1px solid #e2e8f0', overflow:'hidden', boxShadow:'0 8px 32px rgba(0,0,0,0.08)' }
+  },
+    // Header
+    /*#__PURE__*/React.createElement('div', {
+      style: { background:'#1a3a5c', padding:'24px 28px', display:'flex', alignItems:'center', gap:14 }
+    },
+      /*#__PURE__*/React.createElement('div', {
+        style: { width:44, height:44, background:'rgba(201,168,76,0.2)', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }
+      }, /*#__PURE__*/React.createElement('svg', { width:22, height:22, viewBox:'0 0 24 24', fill:'none', stroke:'#C9A84C', strokeWidth:2, strokeLinecap:'round', strokeLinejoin:'round' },
+        /*#__PURE__*/React.createElement('rect', { x:2, y:7, width:20, height:14, rx:2 }),
+        /*#__PURE__*/React.createElement('path', { d:'M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2' }),
+        /*#__PURE__*/React.createElement('path', { d:'M2 12h20' })
+      )),
+      /*#__PURE__*/React.createElement('div', null,
+        /*#__PURE__*/React.createElement('div', { style:{ fontSize:18, fontWeight:700, color:'#fff' } }, 'People'),
+        /*#__PURE__*/React.createElement('div', { style:{ fontSize:11, color:'rgba(255,255,255,0.5)', letterSpacing:'0.08em', textTransform:'uppercase', marginTop:2 } }, 'by DithaNimba Holdings')
+      )
+    ),
+    // Body
+    /*#__PURE__*/React.createElement('div', { style:{ padding:'28px 28px 24px' } },
+      /*#__PURE__*/React.createElement('div', {
+        style: { background:subStatus === 'expired' ? '#fef2f2' : '#fffbeb', border:`1px solid ${subStatus === 'expired' ? '#fecaca' : '#fde68a'}`, borderRadius:10, padding:'12px 16px', marginBottom:24, fontSize:13, color: subStatus === 'expired' ? '#991b1b' : '#92400e', display:'flex', alignItems:'center', gap:10 }
+      },
+        /*#__PURE__*/React.createElement('svg', { width:16, height:16, viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:2, flexShrink:0 },
+          /*#__PURE__*/React.createElement('circle', { cx:12, cy:12, r:10 }),
+          /*#__PURE__*/React.createElement('line', { x1:12, y1:8, x2:12, y2:12 }),
+          /*#__PURE__*/React.createElement('line', { x1:12, y1:16, x2:'12.01', y2:16 })
+        ),
+        subStatus === 'expired' ? 'Your subscription has expired. Renew now to restore access.' : 'Your trial has ended. Subscribe now to continue.'
+      ),
+      // Plan card
+      /*#__PURE__*/React.createElement('div', {
+        style: { border:'1px solid #e2e8f0', borderRadius:10, padding:'16px 20px', marginBottom:24, display:'flex', alignItems:'center', justifyContent:'space-between' }
+      },
+        /*#__PURE__*/React.createElement('div', null,
+          /*#__PURE__*/React.createElement('div', { style:{ fontSize:14, fontWeight:700, color:'#1a3a5c' } }, planLabel),
+          /*#__PURE__*/React.createElement('div', { style:{ fontSize:12, color:'#64748b', marginTop:2 } }, `Billed ${billingFreq === 'year' ? 'annually' : 'monthly'} · All features included`)
+        ),
+        /*#__PURE__*/React.createElement('div', { style:{ textAlign:'right' } },
+          /*#__PURE__*/React.createElement('div', { style:{ fontSize:22, fontWeight:800, color:'#1a3a5c' } }, amountZAR),
+          /*#__PURE__*/React.createElement('div', { style:{ fontSize:11, color:'#94a3b8' } }, `per ${billingFreq}`)
+        )
+      ),
+      // Auto-renewal disclaimer
+      /*#__PURE__*/React.createElement('div', {
+        style: { background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:10, padding:'14px 16px', marginBottom:20, fontSize:12, color:'#475569', lineHeight:1.7 }
+      }, 'By checking the checkbox below, you agree that People will automatically continue your membership and charge the membership fee to your payment method until you cancel. You may cancel at any time to avoid future charges.'),
+      // Checkbox
+      /*#__PURE__*/React.createElement('label', {
+        style: { display:'flex', alignItems:'flex-start', gap:12, cursor:'pointer', marginBottom:20, padding:'10px 14px', background: agreed ? '#e3edf6' : '#f8fafc', border: `1px solid ${agreed ? '#1a3a5c' : '#e2e8f0'}`, borderRadius:8, transition:'all 0.2s' }
+      },
+        /*#__PURE__*/React.createElement('input', {
+          type:'checkbox', checked:agreed, onChange: e => setAgreed(e.target.checked),
+          style: { marginTop:2, accentColor:'#1a3a5c', width:16, height:16, flexShrink:0 }
+        }),
+        /*#__PURE__*/React.createElement('span', { style:{ fontSize:13, color:'#0f172a', lineHeight:1.6 } },
+          'I agree to the automatic renewal terms and authorise People by DithaNimba Holdings to charge my payment method.'
+        )
+      ),
+      // Pay button
+      /*#__PURE__*/React.createElement('button', {
+        onClick: handlePay,
+        disabled: !agreed || paying || !paystackKey,
+        style: {
+          width:'100%', background: agreed && paystackKey ? '#1a3a5c' : '#e2e8f0',
+          color: agreed && paystackKey ? '#fff' : '#94a3b8',
+          border:'none', borderRadius:10, padding:'14px', fontSize:15,
+          fontWeight:700, cursor: agreed && paystackKey ? 'pointer' : 'not-allowed',
+          transition:'all 0.2s', marginBottom:12
+        }
+      }, paying ? 'Opening payment...' : `Pay ${amountZAR} now`),
+      !paystackKey && /*#__PURE__*/React.createElement('div', {
+        style:{ fontSize:12, color:'#ef4444', textAlign:'center', marginBottom:12 }
+      }, 'Paystack key not configured — contact your system administrator.'),
+      // Sign out
+      /*#__PURE__*/React.createElement('button', {
+        onClick: () => sb.auth.signOut(),
+        style: { width:'100%', background:'none', border:'none', color:'#94a3b8', fontSize:13, cursor:'pointer', padding:'6px' }
+      }, 'Sign out')
+    ),
+    // Footer
+    /*#__PURE__*/React.createElement('div', {
+      style: { background:'#f8fafc', borderTop:'1px solid #e2e8f0', padding:'10px 28px', fontSize:11, color:'#94a3b8', textAlign:'center' }
+    }, 'Secured by Paystack · People by DithaNimba Holdings')
+  ));
+}
+
+function sendResendEmail(cfg, to, subject, html) {
   if (!cfg.key || !cfg.from || !to) return;
   try {
     await fetch("https://api.resend.com/emails", {
@@ -1828,16 +2045,16 @@ async function sendResendEmail(cfg, to, subject, html) {
   }
 }
 function leaveSubmittedEmployeeHTML(emp, lv) {
-  return `<div style="font-family:Inter,Arial,sans-serif;max-width:580px;margin:0 auto;background:#f8fafc;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0"><div style="background:#1a3a5c;padding:22px 24px;display:flex;align-items:center;justify-content:space-between"><div style="color:#fff;font-size:17px;font-weight:700">Leave Request Submitted</div><div style="background:#c9a84c;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px">PENDING</div></div><div style="padding:24px"><p style="font-size:14px;color:#0f172a;margin:0 0 6px">Hi <strong>${emp.name}</strong>,</p><p style="font-size:13px;color:#475569;margin:0 0 20px;line-height:1.6">Your leave request has been received and is <strong>pending HR approval</strong>.</p><table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden"><tr style="background:#f8fafc"><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;width:120px">Leave Type</td><td style="padding:10px 14px;font-size:13px;color:#0f172a;font-weight:600">${lv.type}</td></tr><tr><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">From</td><td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #f1f5f9">${D(lv.fr)}</td></tr><tr style="background:#f8fafc"><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">To</td><td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #f1f5f9">${D(lv.to)}</td></tr>${lv.rs ? `<tr><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">Reason</td><td style="padding:10px 14px;font-size:13px;color:#475569;border-top:1px solid #f1f5f9">${lv.rs}</td></tr>` : ''}</table></div><div style="background:#f1f5f9;padding:12px 24px;border-top:1px solid #e2e8f0"><p style="font-size:11px;color:#94a3b8;margin:0">Nimba People by DithaNimba Holdings . Automated notification.</p></div></div>`;
+  return `<div style="font-family:Inter,Arial,sans-serif;max-width:580px;margin:0 auto;background:#f8fafc;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0"><div style="background:#1a3a5c;padding:22px 24px;display:flex;align-items:center;justify-content:space-between"><div style="color:#fff;font-size:17px;font-weight:700">Leave Request Submitted</div><div style="background:#c9a84c;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px">PENDING</div></div><div style="padding:24px"><p style="font-size:14px;color:#0f172a;margin:0 0 6px">Hi <strong>${emp.name}</strong>,</p><p style="font-size:13px;color:#475569;margin:0 0 20px;line-height:1.6">Your leave request has been received and is <strong>pending HR approval</strong>.</p><table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden"><tr style="background:#f8fafc"><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;width:120px">Leave Type</td><td style="padding:10px 14px;font-size:13px;color:#0f172a;font-weight:600">${lv.type}</td></tr><tr><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">From</td><td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #f1f5f9">${D(lv.fr)}</td></tr><tr style="background:#f8fafc"><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">To</td><td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #f1f5f9">${D(lv.to)}</td></tr>${lv.rs ? `<tr><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">Reason</td><td style="padding:10px 14px;font-size:13px;color:#475569;border-top:1px solid #f1f5f9">${lv.rs}</td></tr>` : ''}</table></div><div style="background:#f1f5f9;padding:12px 24px;border-top:1px solid #e2e8f0"><p style="font-size:11px;color:#94a3b8;margin:0">People by DithaNimba Holdings · Automated notification.</p></div></div>`;
 }
 function leaveSubmittedHRHTML(emp, lv) {
-  return `<div style="font-family:Inter,Arial,sans-serif;max-width:580px;margin:0 auto;background:#f8fafc;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0"><div style="background:#1a3a5c;padding:22px 24px"><div style="color:#fff;font-size:17px;font-weight:700;margin-bottom:2px">Action Required: Leave Request</div><div style="color:rgba(255,255,255,0.6);font-size:12px">Review and approve or reject in Nimba People</div></div><div style="padding:24px"><div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:20px"><div style="width:42px;height:42px;border-radius:50%;background:#1a3a5c;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0">${emp.av}</div><div><div style="font-size:14px;font-weight:700;color:#0f172a">${emp.name}</div><div style="font-size:12px;color:#64748b;margin-top:2px">${emp.role} . ${emp.dept}</div></div></div><table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:20px"><tr style="background:#f8fafc"><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;width:120px">Leave Type</td><td style="padding:10px 14px;font-size:13px;color:#0f172a;font-weight:600">${lv.type}</td></tr><tr><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">From</td><td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #f1f5f9">${D(lv.fr)}</td></tr><tr style="background:#f8fafc"><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">To</td><td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #f1f5f9">${D(lv.to)}</td></tr>${lv.rs ? `<tr><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">Reason</td><td style="padding:10px 14px;font-size:13px;color:#475569;border-top:1px solid #f1f5f9">${lv.rs}</td></tr>` : ''}</table><div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;font-size:13px;color:#92400e"> Sign in to <strong>Nimba People</strong> and go to <strong>Leave Management</strong> to approve or reject.</div></div><div style="background:#f1f5f9;padding:12px 24px;border-top:1px solid #e2e8f0"><p style="font-size:11px;color:#94a3b8;margin:0">Nimba People by DithaNimba Holdings . Automated notification.</p></div></div>`;
+  return `<div style="font-family:Inter,Arial,sans-serif;max-width:580px;margin:0 auto;background:#f8fafc;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0"><div style="background:#1a3a5c;padding:22px 24px"><div style="color:#fff;font-size:17px;font-weight:700;margin-bottom:2px">Action Required: Leave Request</div><div style="color:rgba(255,255,255,0.6);font-size:12px">Review and approve or reject in People</div></div><div style="padding:24px"><div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:20px"><div style="width:42px;height:42px;border-radius:50%;background:#1a3a5c;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0">${emp.av}</div><div><div style="font-size:14px;font-weight:700;color:#0f172a">${emp.name}</div><div style="font-size:12px;color:#64748b;margin-top:2px">${emp.role} . ${emp.dept}</div></div></div><table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:20px"><tr style="background:#f8fafc"><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;width:120px">Leave Type</td><td style="padding:10px 14px;font-size:13px;color:#0f172a;font-weight:600">${lv.type}</td></tr><tr><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">From</td><td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #f1f5f9">${D(lv.fr)}</td></tr><tr style="background:#f8fafc"><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">To</td><td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #f1f5f9">${D(lv.to)}</td></tr>${lv.rs ? `<tr><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">Reason</td><td style="padding:10px 14px;font-size:13px;color:#475569;border-top:1px solid #f1f5f9">${lv.rs}</td></tr>` : ''}</table><div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;font-size:13px;color:#92400e"> Sign in to <strong>People</strong> and go to <strong>Leave Management</strong> to approve or reject.</div></div><div style="background:#f1f5f9;padding:12px 24px;border-top:1px solid #e2e8f0"><p style="font-size:11px;color:#94a3b8;margin:0">People by DithaNimba Holdings · Automated notification.</p></div></div>`;
 }
 function leaveDecisionHTML(emp, lv, decision) {
   const approved = decision === 'Approved';
   const color = approved ? '#16a34a' : '#dc2626';
   const bg = approved ? '#dcfce7' : '#fee2e2';
-  return `<div style="font-family:Inter,Arial,sans-serif;max-width:580px;margin:0 auto;background:#f8fafc;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0"><div style="background:#1a3a5c;padding:22px 24px;display:flex;align-items:center;justify-content:space-between"><div style="color:#fff;font-size:17px;font-weight:700">Leave Request ${decision}</div><div style="background:${color};color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px">${decision.toUpperCase()}</div></div><div style="padding:24px"><p style="font-size:14px;color:#0f172a;margin:0 0 6px">Hi <strong>${emp.name}</strong>,</p><p style="font-size:13px;color:#475569;margin:0 0 20px;line-height:1.6">Your <strong>${lv.type} Leave</strong> from <strong>${D(lv.fr)}</strong> to <strong>${D(lv.to)}</strong> has been <strong style="color:${color}">${decision}</strong> by HR.</p><table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden"><tr style="background:#f8fafc"><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;width:120px">Leave Type</td><td style="padding:10px 14px;font-size:13px;color:#0f172a;font-weight:600">${lv.type}</td></tr><tr><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">Period</td><td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #f1f5f9">${D(lv.fr)} - ${D(lv.to)}</td></tr><tr style="background:${bg}"><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">Status</td><td style="padding:10px 14px;font-size:13px;font-weight:700;color:${color};border-top:1px solid #f1f5f9">${decision}</td></tr></table></div><div style="background:#f1f5f9;padding:12px 24px;border-top:1px solid #e2e8f0"><p style="font-size:11px;color:#94a3b8;margin:0">Nimba People by DithaNimba Holdings . Automated notification.</p></div></div>`;
+  return `<div style="font-family:Inter,Arial,sans-serif;max-width:580px;margin:0 auto;background:#f8fafc;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0"><div style="background:#1a3a5c;padding:22px 24px;display:flex;align-items:center;justify-content:space-between"><div style="color:#fff;font-size:17px;font-weight:700">Leave Request ${decision}</div><div style="background:${color};color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px">${decision.toUpperCase()}</div></div><div style="padding:24px"><p style="font-size:14px;color:#0f172a;margin:0 0 6px">Hi <strong>${emp.name}</strong>,</p><p style="font-size:13px;color:#475569;margin:0 0 20px;line-height:1.6">Your <strong>${lv.type} Leave</strong> from <strong>${D(lv.fr)}</strong> to <strong>${D(lv.to)}</strong> has been <strong style="color:${color}">${decision}</strong> by HR.</p><table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden"><tr style="background:#f8fafc"><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;width:120px">Leave Type</td><td style="padding:10px 14px;font-size:13px;color:#0f172a;font-weight:600">${lv.type}</td></tr><tr><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">Period</td><td style="padding:10px 14px;font-size:13px;color:#0f172a;border-top:1px solid #f1f5f9">${D(lv.fr)} - ${D(lv.to)}</td></tr><tr style="background:${bg}"><td style="padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #f1f5f9">Status</td><td style="padding:10px 14px;font-size:13px;font-weight:700;color:${color};border-top:1px solid #f1f5f9">${decision}</td></tr></table></div><div style="background:#f1f5f9;padding:12px 24px;border-top:1px solid #e2e8f0"><p style="font-size:11px;color:#94a3b8;margin:0">People by DithaNimba Holdings · Automated notification.</p></div></div>`;
 }
 
 /* -- Main App --------------------------------- */
@@ -1890,6 +2107,7 @@ function App({
   const [invEmail, setInvEmail] = useState(""); // invite email
   const ANNUAL_LEAVE_DAYS = 15; // annual leave allowance per employee
   const [cfgF, setCfgF] = useState({
+    psk: "",
     key: "",
     from: "",
     hr: "",
@@ -1930,7 +2148,8 @@ function App({
             from:    map["resend_from"]    || fallback.from,
             hr:      map["hr_email"]       || fallback.hr,
             company: map["company_name"]   || fallback.company,
-            logo:    map["company_logo"]   || fallback.logo
+            logo:    map["company_logo"]   || fallback.logo,
+            psk:     map["paystack_public_key"] || LS.g("hr-cfg-psk") || ""
           };
           // Update localStorage cache for offline use
           LS.s("hr-cfg-key",     c.key);
@@ -1950,6 +2169,13 @@ function App({
       }
     }
     loadSettings();
+    // Check subscription status
+    async function checkSubscription() {
+      const result = await checkSubscriptionDB();
+      setSubData(result);
+      setSubStatus(result.status || 'active');
+    }
+    checkSubscription();
     // Load employees from Supabase
     sb.from("nimba_employees").select("*").order("created_at", {
       ascending: true
@@ -2004,7 +2230,8 @@ function App({
       { key: "resend_from",  value: cfgF.from    || "" },
       { key: "hr_email",     value: cfgF.hr      || "" },
       { key: "company_name", value: cfgF.company || "" },
-      { key: "company_logo", value: cfgF.logo    || "" }
+      { key: "company_logo", value: cfgF.logo    || "" },
+      { key: "paystack_public_key", value: cfgF.psk || "" }
     ];
     const { error } = await sb.from("nimba_settings")
       .upsert(rows, { onConflict: "key" });
@@ -2020,6 +2247,7 @@ function App({
     LS.s("hr-cfg-hr",      cfgF.hr);
     LS.s("hr-cfg-company", cfgF.company);
     LS.s("hr-cfg-logo",    cfgF.logo);
+    LS.s("hr-cfg-psk",     cfgF.psk);
     setCfg({ ...cfgF });
     setSm(false);
   }
@@ -2141,13 +2369,13 @@ function App({
       return;
     }
     const inviteHtml = `<div style="font-family:Inter,Arial,sans-serif;max-width:580px;margin:0 auto;background:#f8fafc;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
-      <div style="background:#1a3a5c;padding:24px 28px"><div style="color:#fff;font-size:18px;font-weight:700;margin-bottom:4px">You're invited to Nimba People</div><div style="color:rgba(255,255,255,0.6);font-size:12px">Your HR portal is ready</div></div>
+      <div style="background:#1a3a5c;padding:24px 28px"><div style="color:#fff;font-size:18px;font-weight:700;margin-bottom:4px">You're invited to People</div><div style="color:rgba(255,255,255,0.6);font-size:12px">Your HR portal is ready</div></div>
       <div style="padding:28px"><p style="font-size:14px;color:#0f172a;margin:0 0 16px">Hi <strong>${emp.name}</strong>,</p>
-      <p style="font-size:13px;color:#475569;margin:0 0 24px;line-height:1.6">Your HR account has been created on <strong>Nimba People</strong>. You can now view your profile, submit leave requests and download your payslips.</p>
-      <div style="text-align:center;margin:28px 0"><a href="https://dithanimbaholdings.co.za" style="background:#1a3a5c;color:#fff;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:700;font-size:14px">Sign In to Nimba People</a></div>
+      <p style="font-size:13px;color:#475569;margin:0 0 24px;line-height:1.6">Your HR account has been created on <strong>People</strong>. You can now view your profile, submit leave requests and download your payslips.</p>
+      <div style="text-align:center;margin:28px 0"><a href="https://dithanimbaholdings.co.za" style="background:#1a3a5c;color:#fff;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:700;font-size:14px">Sign In to People</a></div>
       <div style="background:#f1f5f9;border-radius:10px;padding:14px 16px;font-size:12px;color:#64748b">Use your email address <strong>${emp.em}</strong> to sign up or sign in. If you already have an account, just sign in.</div></div>
-      <div style="background:#f1f5f9;padding:12px 24px;border-top:1px solid #e2e8f0"><p style="font-size:11px;color:#94a3b8;margin:0">Nimba People by DithaNimba Holdings . Automated invitation.</p></div></div>`;
-    await sendResendEmail(cfg, emp.em, "You're invited to Nimba People - Your HR Portal", inviteHtml);
+      <div style="background:#f1f5f9;padding:12px 24px;border-top:1px solid #e2e8f0"><p style="font-size:11px;color:#94a3b8;margin:0">People by DithaNimba Holdings · Automated invitation.</p></div></div>`;
+    await sendResendEmail(cfg, emp.em, "You're invited to People – Your HR Portal", inviteHtml);
     showToast(`Invite sent to ${emp.name}`);
     setIm(false);
     setInvEmail("");
@@ -2366,7 +2594,7 @@ function App({
       display: "block",
       lineHeight: 1.1
     }
-  }, "Nimba People"), /*#__PURE__*/React.createElement("div", {
+  }, "People"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 9,
       color: "var(--text-muted)",
@@ -2465,7 +2693,7 @@ function App({
     className: "mobile-header-title"
   }, PAGE_TITLE[tab]), /*#__PURE__*/React.createElement("div", {
     className: "mobile-header-sub"
-  }, "Nimba People")), /*#__PURE__*/React.createElement("div", {
+  }, "People")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8
@@ -2558,7 +2786,7 @@ function App({
       fontSize: 14,
       color: "var(--text-muted)"
     }
-  }, isAdmin ? "Here's your team overview for today." : myProfile ? `Welcome back, ${myProfile.name.split(" ")[0]}.` : "Welcome to Nimba People.")), isAdmin && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, isAdmin ? "Here's your team overview for today." : myProfile ? `Welcome back, ${myProfile.name.split(" ")[0]}.` : "Welcome to People.")), isAdmin && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "grid-cards",
     style: {
       marginBottom: 24
@@ -4443,6 +4671,17 @@ function App({
     type: "email",
     req: true
   })), /*#__PURE__*/React.createElement("div", {
+    style: { borderTop: "1px solid var(--border)", margin: "16px 0" }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }
+  }, "Billing (Paystack)"), /*#__PURE__*/React.createElement("div", {
+    style: { background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }
+  }, "Your Paystack public key — from dashboard.paystack.com → Settings → API Keys."), /*#__PURE__*/React.createElement(FI, {
+    label: "Paystack Public Key",
+    value: cfgF.psk || "",
+    onChange: v => setCfgF(f => ({ ...f, psk: v })),
+    ph: "pk_live_xxxxxxxxxxxx"
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 10,
@@ -4474,7 +4713,7 @@ function App({
       color: "var(--primary)",
       lineHeight: 1.6
     }
-  }, "Enter the employee's email address. They'll receive a link to create their account on Nimba People. The email must match the one saved in their employee record."), /*#__PURE__*/React.createElement(FI, {
+  }, "Enter the employee's email address. They'll receive a link to create their account on People. The email must match the one saved in their employee record."), /*#__PURE__*/React.createElement(FI, {
     label: "Employee Email",
     value: invEmail,
     onChange: setInvEmail,
@@ -4534,7 +4773,7 @@ function App({
     onEmail: (emp, periodStr, slip) => {
       const html = `<div style="font-family:Inter,Arial,sans-serif;max-width:580px;margin:0 auto">
         <div style="background:#1a3a5c;padding:22px 24px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center">
-          <div><div style="color:#fff;font-size:17px;font-weight:700">Nimba People</div><div style="color:#c9a84c;font-size:10px;letter-spacing:0.1em">PAYSLIP - ${periodStr}</div></div>
+          <div><div style="color:#fff;font-size:17px;font-weight:700">People</div><div style="color:#c9a84c;font-size:10px;letter-spacing:0.1em">PAYSLIP - ${periodStr}</div></div>
           <div style="color:#fff;font-size:13px;font-weight:700">NET PAY: R ${slip.net.toLocaleString('en-ZA')}</div>
         </div>
         <div style="background:#fff;border:1px solid #e2e8f0;border-top:none;padding:24px;border-radius:0 0 12px 12px">
@@ -4545,7 +4784,7 @@ function App({
             <tr style="background:#f8fafc"><td style="padding:10px 14px;font-size:12px;color:#64748b;border-top:1px solid #f1f5f9">UIF (1%)</td><td style="padding:10px 14px;font-size:13px;color:#dc2626;text-align:right;border-top:1px solid #f1f5f9">-R ${slip.uif.toLocaleString('en-ZA')}</td></tr>
             <tr style="background:#1a3a5c"><td style="padding:12px 14px;font-size:13px;font-weight:700;color:#fff">Net Pay</td><td style="padding:12px 14px;font-size:16px;font-weight:800;color:#fff;text-align:right">R ${slip.net.toLocaleString('en-ZA')}</td></tr>
           </table>
-          <p style="font-size:11px;color:#94a3b8;margin:0">PAYE is estimated based on 2024/25 SA tax tables. This payslip is confidential. Generated by Nimba People.</p>
+          <p style="font-size:11px;color:#94a3b8;margin:0">PAYE is estimated based on 2024/25 SA tax tables. This payslip is confidential. Generated by People by DithaNimba Holdings.</p>
         </div></div>`;
       sendResendEmail(cfg, emp.em, `Your Payslip - ${periodStr}`, html);
       showToast(`Payslip emailed to ${emp.name}`);
