@@ -264,12 +264,20 @@ body.has-topbar{padding-top:calc(env(safe-area-inset-top) + 40px) !important}
 </div>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="config.js"></script>
 <script>
-// Supabase init outside Babel so it never gets transpiled
-window.__sb = window.supabase.createClient(
-  'https://tpnppkcknqzjamwkqugo.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwbnBwa2NrbnF6amFtd2txdWdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzExNzQsImV4cCI6MjA5MDQ0NzE3NH0.mQd7fMQle3lzr8ehKkOVwgzbTNoMoIkYwp8cqSFYR_k'
-);
+// Supabase init outside Babel so it never gets transpiled.
+// Per-client instance: credentials come from config.js (window.NIMBA_CONFIG).
+// HARD FAIL if missing — never fall back to another client's database.
+(function(){
+  var C = window.NIMBA_CONFIG;
+  if (!C || !C.SUPABASE_URL || !C.SUPABASE_ANON_KEY) {
+    var el = document.getElementById('boot-error');
+    if (el) { el.style.display = 'block'; el.textContent = 'Configuration missing (config.js). Contact DithaNimba support.'; }
+    throw new Error('NIMBA_CONFIG missing — config.js not loaded');
+  }
+  window.__sb = window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY);
+})();
 </script>
 <script>
 const {
@@ -280,7 +288,7 @@ const {
 const sb = window.__sb;
 
 /* -- Admin config ----------------------------- */
-const ADMIN_EMAIL = 'mondliwes@gmail.com';
+const ADMIN_EMAIL = (window.NIMBA_CONFIG && window.NIMBA_CONFIG.ADMIN_EMAIL) || 'mondliwes@gmail.com';
 // Paystack public key — set via window.__PAYSTACK_KEY (Netlify env) or Company Settings
 const PAYSTACK_PUBLIC_KEY = window.__PAYSTACK_KEY || '';
 // HR_NOTIFY_EMAIL is now read from cfg.hr (Company Settings → HR Manager Email)
@@ -2126,7 +2134,7 @@ function App({
   const [sm, setSm] = useState(false);
   const [im, setIm] = useState(false); // invite modal
   const [invEmail, setInvEmail] = useState(""); // invite email
-  const ANNUAL_LEAVE_DAYS = 15; // annual leave allowance per employee
+  const ANNUAL_LEAVE_DAYS = (window.NIMBA_CONFIG && window.NIMBA_CONFIG.ANNUAL_LEAVE_DAYS) || 15; // annual leave allowance per employee
   const [cfgF, setCfgF] = useState({
     psk: "",
     key: "",
