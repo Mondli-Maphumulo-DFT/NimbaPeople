@@ -264,20 +264,12 @@ body.has-topbar{padding-top:calc(env(safe-area-inset-top) + 40px) !important}
 </div>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="config.js"></script>
 <script>
-// Supabase init outside Babel so it never gets transpiled.
-// Per-client instance: credentials come from config.js (window.NIMBA_CONFIG).
-// HARD FAIL if missing — never fall back to another client's database.
-(function(){
-  var C = window.NIMBA_CONFIG;
-  if (!C || !C.SUPABASE_URL || !C.SUPABASE_ANON_KEY) {
-    var el = document.getElementById('boot-error');
-    if (el) { el.style.display = 'block'; el.textContent = 'Configuration missing (config.js). Contact DithaNimba support.'; }
-    throw new Error('NIMBA_CONFIG missing — config.js not loaded');
-  }
-  window.__sb = window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY);
-})();
+// Supabase init outside Babel so it never gets transpiled
+window.__sb = window.supabase.createClient(
+  'https://tpnppkcknqzjamwkqugo.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwbnBwa2NrbnF6amFtd2txdWdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzExNzQsImV4cCI6MjA5MDQ0NzE3NH0.mQd7fMQle3lzr8ehKkOVwgzbTNoMoIkYwp8cqSFYR_k'
+);
 </script>
 <script>
 const {
@@ -288,7 +280,7 @@ const {
 const sb = window.__sb;
 
 /* -- Admin config ----------------------------- */
-const ADMIN_EMAIL = (window.NIMBA_CONFIG && window.NIMBA_CONFIG.ADMIN_EMAIL) || 'mondliwes@gmail.com';
+const ADMIN_EMAIL = 'mondliwes@gmail.com';
 // Paystack public key — set via window.__PAYSTACK_KEY (Netlify env) or Company Settings
 const PAYSTACK_PUBLIC_KEY = window.__PAYSTACK_KEY || '';
 // HR_NOTIFY_EMAIL is now read from cfg.hr (Company Settings → HR Manager Email)
@@ -895,6 +887,7 @@ const IC = {
   plus: "M12 5v14 M5 12h14",
   x: "M18 6L6 18 M6 6l12 12",
   slip: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8",
+  clock: "M12 22a10 10 0 100-20 10 10 0 000 20z M12 6v6l4 2",
   cog: "M12 8a4 4 0 100 8 4 4 0 000-8z M12 2v2 M12 20v2 M4.93 4.93l1.41 1.41 M17.66 17.66l1.41 1.41 M2 12h2 M20 12h2 M6.34 17.66l-1.41 1.41 M19.07 4.93l-1.41 1.41",
   more: "M12 5a1 1 0 100-2 1 1 0 000 2 M12 13a1 1 0 100-2 1 1 0 000 2 M12 21a1 1 0 100-2 1 1 0 000 2",
   bag: "M20 7H4a2 2 0 00-2 2v11a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"
@@ -1018,6 +1011,56 @@ function calcSlip(sal) {
     net: gross - uif - paye
   };
 }
+/* -- Weekly wage calc (Phase 2: Time & Attendance) ----
+   SA PAYE is an ANNUAL system. For weekly earners we annualise
+   (weekly gross x 52), run the same 2024/25 tables + R17,235
+   rebate, then divide the tax back by 52. This automatically
+   yields R0 PAYE for workers under the ~R95,750/yr threshold.
+   UIF is 1% of gross; the R177.12 monthly ceiling converts to
+   R40.87 per week (annual ceiling / 52), NOT R177.
+   NOTE: verify against a real payslip with your accountant.   */
+const WEEKS_PER_YEAR = 52;
+const UIF_WEEKLY_CAP = 40.87;
+function annualPAYE(annual) {
+  let at = 0;
+  if (annual <= 237100) at = annual * 0.18;
+  else if (annual <= 370500) at = 42678 + (annual - 237100) * 0.26;
+  else if (annual <= 512800) at = 77362 + (annual - 370500) * 0.31;
+  else if (annual <= 673000) at = 121475 + (annual - 512800) * 0.36;
+  else if (annual <= 857900) at = 179147 + (annual - 673000) * 0.39;
+  else if (annual <= 1817000) at = 251258 + (annual - 857900) * 0.41;
+  else at = 644489 + (annual - 1817000) * 0.45;
+  return Math.max(0, at - 17235);
+}
+function calcWeeklySlip(hoursNormal, hoursOt, rate, otMult) {
+  const hn = +hoursNormal || 0, ho = +hoursOt || 0;
+  const r = +rate || 0, m = +otMult || 1.5;
+  const basePay = hn * r;
+  const otPay = ho * r * m;
+  const gross = Math.round((basePay + otPay) * 100) / 100;
+  const uif = Math.min(Math.round(gross * 0.01 * 100) / 100, UIF_WEEKLY_CAP);
+  const paye = Math.round(annualPAYE(gross * WEEKS_PER_YEAR) / WEEKS_PER_YEAR);
+  return {
+    hoursNormal: hn, hoursOt: ho, rate: r, otMultiplier: m,
+    basePay: Math.round(basePay * 100) / 100,
+    otPay: Math.round(otPay * 100) / 100,
+    gross, uif, paye,
+    net: Math.round((gross - uif - paye) * 100) / 100
+  };
+}
+/* Monday of the week containing d */
+function weekStartOf(d) {
+  const dt = new Date(d);
+  const day = (dt.getDay() + 6) % 7;      // Mon=0
+  dt.setDate(dt.getDate() - day);
+  return dt.toISOString().slice(0, 10);
+}
+function weekLabel(ws) {
+  const a = new Date(ws), b = new Date(ws);
+  b.setDate(b.getDate() + 6);
+  return D(a.toISOString().slice(0,10)) + " - " + D(b.toISOString().slice(0,10));
+}
+
 function genPayslipPDF(emp, periodStr, slip) {
   const {
     jsPDF
@@ -2095,6 +2138,11 @@ function App({
   const [emps, setEmps] = useState([]);
   const [lvs, setLvs] = useState([]);
   const [pay, setPay] = useState([]);
+  /* Phase 2: Time & Attendance */
+  const [att, setAtt] = useState([]);
+  const [attWeek, setAttWeek] = useState(weekStartOf(new Date()));
+  const [attDraft, setAttDraft] = useState({});
+  const [attSaving, setAttSaving] = useState(false);
   const [rdy, setRdy] = useState(false);
   const isMobile = useIsMobile();
   const [toast, setToast] = useState(null);
@@ -2116,7 +2164,11 @@ function App({
     em2: "",
     ph: "",
     loc: "",
-    jd: ""
+    jd: "",
+    payType: "monthly",
+    rate: "",
+    otMult: 1.5,
+    site: ""
   });
   const [lm, setLm] = useState(false);
   const [lf, setLf] = useState({
@@ -2134,7 +2186,7 @@ function App({
   const [sm, setSm] = useState(false);
   const [im, setIm] = useState(false); // invite modal
   const [invEmail, setInvEmail] = useState(""); // invite email
-  const ANNUAL_LEAVE_DAYS = (window.NIMBA_CONFIG && window.NIMBA_CONFIG.ANNUAL_LEAVE_DAYS) || 15; // annual leave allowance per employee
+  const ANNUAL_LEAVE_DAYS = 15; // annual leave allowance per employee
   const [cfgF, setCfgF] = useState({
     psk: "",
     key: "",
@@ -2217,7 +2269,11 @@ function App({
           ph: r.phone || '',
           loc: r.location || '',
           jd: r.join_date || '',
-          av: r.avatar || (r.name ? r.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '??')
+          av: r.avatar || (r.name ? r.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '??'),
+          payType: r.pay_type || 'monthly',
+          rate: r.hourly_rate || 0,
+          otMult: r.ot_multiplier || 1.5,
+          site: r.site || ''
         })));
       } else {
         setEmps(LS.g("hr-e") || SE);
@@ -2285,7 +2341,11 @@ function App({
     em2: "",
     ph: "",
     loc: "",
-    jd: new Date().toISOString().split("T")[0]
+    jd: new Date().toISOString().split("T")[0],
+    payType: "monthly",
+    rate: "",
+    otMult: 1.5,
+    site: ""
   });
   function addE() {
     setEd(null);
@@ -2303,7 +2363,11 @@ function App({
       em2: e.em,
       ph: e.ph,
       loc: e.loc,
-      jd: e.jd
+      jd: e.jd,
+      payType: e.payType || "monthly",
+      rate: e.rate || "",
+      otMult: e.otMult || 1.5,
+      site: e.site || ""
     });
     setEm(true);
     setVw(null);
@@ -2321,7 +2385,11 @@ function App({
       status: ef.st,
       location: ef.loc || null,
       join_date: ef.jd || null,
-      avatar: av
+      avatar: av,
+      pay_type: ef.payType || "monthly",
+      hourly_rate: ef.payType === "weekly" ? +ef.rate || 0 : 0,
+      ot_multiplier: +ef.otMult || 1.5,
+      site: ef.site || null
     };
     if (ed) {
       const {
@@ -2521,6 +2589,60 @@ function App({
   // Leaves: admin sees all, employee sees only their own
   const visibleLvs = isAdmin ? lvs : lvs.filter(l => l.eid === (myProfile ? myProfile.id : null));
 
+  /* Phase 2: save the captured week to Supabase (upsert per worker) */
+  async function saveAttendance() {
+    setAttSaving(true);
+    try {
+      const rows = weeklyEmps.map(e => {
+        const d = attDraft[e.id] || { hn: 0, ho: 0 };
+        return {
+          eid: e.id,
+          emp_email: e.em,
+          week_start: attWeek,
+          hours_normal: +d.hn || 0,
+          hours_ot: +d.ho || 0,
+          rate: +e.rate || 0,
+          ot_multiplier: +e.otMult || 1.5,
+          site: e.site || null,
+          status: "Draft",
+          captured_by: userEmail || null,
+          updated_at: new Date().toISOString()
+        };
+      });
+      if (!rows.length) { setAttSaving(false); return; }
+      const { error } = await sb.from("nimba_attendance")
+        .upsert(rows, { onConflict: "eid,week_start" });
+      if (error) { console.error(error); showToast("Could not save hours - try again", false); }
+      else {
+        showToast("Hours saved for " + weekLabel(attWeek));
+        const { data } = await sb.from("nimba_attendance").select("*").eq("week_start", attWeek);
+        setAtt(data || []);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Could not save hours - try again", false);
+    }
+    setAttSaving(false);
+  }
+
+  /* Phase 2: load attendance for the selected week */
+  useEffect(() => {
+    if (!rdy) return;
+    sb.from("nimba_attendance").select("*").eq("week_start", attWeek)
+      .then(({ data, error }) => {
+        if (error) { console.warn("Attendance load error:", error); setAtt([]); return; }
+        setAtt(data || []);
+        const d = {};
+        (data || []).forEach(r => {
+          d[r.eid] = { hn: r.hours_normal || 0, ho: r.hours_ot || 0, st: r.status };
+        });
+        setAttDraft(d);
+      });
+  }, [attWeek, rdy]);
+
+  /* Weekly-paid employees (Phase 2) */
+  const weeklyEmps = emps.filter(e => e.payType === "weekly" && (e.st === "Active" || e.st === "Probation"));
+
   // Payslip list: admin sees all active, employee sees only themselves
   const payslipEmps = isAdmin ? emps.filter(e => e.st === "Active" || e.st === "Probation") : myProfile && (myProfile.st === "Active" || myProfile.st === "Probation") ? [myProfile] : [];
   const dbk = DEPTS.map(d => ({
@@ -2530,12 +2652,13 @@ function App({
   if (!rdy) return /*#__PURE__*/React.createElement(Splash, null);
 
   // Employees only see their own data tabs; Payroll is admin-only
-  const NAVS = isAdmin ? [["dashboard", "home", "Home"], ["employees", "users", "Staff"], ["payroll", "dollar", "Payroll"], ["leaves", "cal", "Leave"], ["payslips", "slip", "Payslips"]] : [["dashboard", "home", "Home"], ["employees", "users", "My Profile"], ["leaves", "cal", "Leave"], ["payslips", "slip", "Payslips"]];
+  const NAVS = isAdmin ? [["dashboard", "home", "Home"], ["employees", "users", "Staff"], ["attendance", "clock", "Hours"], ["payroll", "dollar", "Payroll"], ["leaves", "cal", "Leave"], ["payslips", "slip", "Payslips"]] : [["dashboard", "home", "Home"], ["employees", "users", "My Profile"], ["leaves", "cal", "Leave"], ["payslips", "slip", "Payslips"]];
 
   /* Page titles for mobile header */
   const PAGE_TITLE = {
     dashboard: "Good day 👋",
     employees: isAdmin ? "Employees" : "My Profile",
+    attendance: "Time & Attendance",
     payroll: "Payroll",
     leaves: "Leave",
     payslips: "Payslips",
@@ -3767,7 +3890,111 @@ function App({
     emp: emps.find(x => x.id === l.eid),
     onApprove: isAdmin ? id => upL(id, "Approved") : null,
     onReject: isAdmin ? id => upL(id, "Rejected") : null
-  })))), tab === "payslips" && /*#__PURE__*/React.createElement("section", null, /*#__PURE__*/React.createElement("div", {
+  })))), tab === "attendance" && isAdmin && /*#__PURE__*/React.createElement("section", null,
+    /*#__PURE__*/React.createElement("header", { style: { display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between", marginBottom: 20 } },
+      /*#__PURE__*/React.createElement("div", { className: "desktop-only" },
+        /*#__PURE__*/React.createElement("h2", { style: { fontFamily: "Syne,sans-serif", fontSize: 28, fontWeight: 800, margin: 0 } }, "Time & Attendance"),
+        /*#__PURE__*/React.createElement("p", { style: { color: "var(--muted)", margin: "4px 0 0", fontSize: 14 } }, "Capture weekly hours for site crews")
+      ),
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+        /*#__PURE__*/React.createElement("button", { className: "btn ghost", onClick: () => { const d = new Date(attWeek); d.setDate(d.getDate() - 7); setAttWeek(weekStartOf(d)); } }, "\u2039 Prev"),
+        /*#__PURE__*/React.createElement("input", { type: "date", className: "input", style: { width: 160 }, value: attWeek, onChange: e => setAttWeek(weekStartOf(e.target.value)) }),
+        /*#__PURE__*/React.createElement("button", { className: "btn ghost", onClick: () => { const d = new Date(attWeek); d.setDate(d.getDate() + 7); setAttWeek(weekStartOf(d)); } }, "Next \u203a")
+      )
+    ),
+
+    /*#__PURE__*/React.createElement("div", { className: "card", style: { padding: "14px 16px", marginBottom: 16, background: "var(--primary)", color: "#fff" } },
+      /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, opacity: .8, textTransform: "uppercase", letterSpacing: 1 } }, "Pay week"),
+      /*#__PURE__*/React.createElement("div", { style: { fontSize: 18, fontWeight: 700, marginTop: 2 } }, weekLabel(attWeek))
+    ),
+
+    weeklyEmps.length === 0 ?
+      /*#__PURE__*/React.createElement("div", { className: "card", style: { padding: 28, textAlign: "center" } },
+        /*#__PURE__*/React.createElement("p", { style: { color: "var(--muted)", margin: 0, fontSize: 14 } },
+          "No weekly-paid employees yet. Set an employee's pay type to \"Weekly\" and give them an hourly rate to capture hours here.")
+      ) :
+      /*#__PURE__*/React.createElement(React.Fragment, null,
+
+        /* ---- desktop grid ---- */
+        /*#__PURE__*/React.createElement("div", { className: "table-wrap desktop-only" },
+          /*#__PURE__*/React.createElement("table", null,
+            /*#__PURE__*/React.createElement("thead", null,
+              /*#__PURE__*/React.createElement("tr", null,
+                ["Employee", "Site", "Rate", "Normal hrs", "OT hrs", "Gross", "PAYE", "UIF", "Net"].map(h =>
+                  /*#__PURE__*/React.createElement("th", { key: h }, h)))),
+            /*#__PURE__*/React.createElement("tbody", null,
+              weeklyEmps.map(e => {
+                const d = attDraft[e.id] || { hn: 0, ho: 0 };
+                const s = calcWeeklySlip(d.hn, d.ho, e.rate, e.otMult);
+                return /*#__PURE__*/React.createElement("tr", { key: e.id },
+                  /*#__PURE__*/React.createElement("td", null,
+                    /*#__PURE__*/React.createElement("div", { style: { fontWeight: 600 } }, e.name),
+                    /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "var(--muted)" } }, e.role)),
+                  /*#__PURE__*/React.createElement("td", null, e.site || "-"),
+                  /*#__PURE__*/React.createElement("td", null, R(e.rate), "/hr"),
+                  /*#__PURE__*/React.createElement("td", null,
+                    /*#__PURE__*/React.createElement("input", { type: "number", min: 0, max: 168, step: 0.5, className: "input", style: { width: 80 },
+                      value: d.hn,
+                      onChange: ev => setAttDraft(prev => ({ ...prev, [e.id]: { ...(prev[e.id] || { ho: 0 }), hn: ev.target.value } })) })),
+                  /*#__PURE__*/React.createElement("td", null,
+                    /*#__PURE__*/React.createElement("input", { type: "number", min: 0, max: 100, step: 0.5, className: "input", style: { width: 80 },
+                      value: d.ho,
+                      onChange: ev => setAttDraft(prev => ({ ...prev, [e.id]: { ...(prev[e.id] || { hn: 0 }), ho: ev.target.value } })) })),
+                  /*#__PURE__*/React.createElement("td", { style: { fontWeight: 700 } }, R(s.gross)),
+                  /*#__PURE__*/React.createElement("td", { style: { color: "#dc2626" } }, "-", R(s.paye)),
+                  /*#__PURE__*/React.createElement("td", { style: { color: "#dc2626" } }, "-", R(s.uif)),
+                  /*#__PURE__*/React.createElement("td", { style: { fontWeight: 800, color: "var(--primary)" } }, R(s.net)));
+              })))),
+
+        /* ---- mobile cards ---- */
+        /*#__PURE__*/React.createElement("div", { className: "mobile-only" },
+          weeklyEmps.map(e => {
+            const d = attDraft[e.id] || { hn: 0, ho: 0 };
+            const s = calcWeeklySlip(d.hn, d.ho, e.rate, e.otMult);
+            return /*#__PURE__*/React.createElement("div", { key: e.id, className: "m-card", style: { marginBottom: 10 } },
+              /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 } },
+                /*#__PURE__*/React.createElement("div", null,
+                  /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700 } }, e.name),
+                  /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "var(--muted)" } }, e.role, " \u00b7 ", R(e.rate), "/hr")),
+                /*#__PURE__*/React.createElement("div", { style: { textAlign: "right" } },
+                  /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, color: "var(--muted)" } }, "Net"),
+                  /*#__PURE__*/React.createElement("div", { style: { fontWeight: 800, color: "var(--primary)" } }, R(s.net)))),
+              /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10 } },
+                /*#__PURE__*/React.createElement("div", { style: { flex: 1 } },
+                  /*#__PURE__*/React.createElement("label", { style: { fontSize: 11, color: "var(--muted)" } }, "Normal hrs"),
+                  /*#__PURE__*/React.createElement("input", { type: "number", min: 0, step: 0.5, className: "input", style: { width: "100%" },
+                    value: d.hn,
+                    onChange: ev => setAttDraft(prev => ({ ...prev, [e.id]: { ...(prev[e.id] || { ho: 0 }), hn: ev.target.value } })) })),
+                /*#__PURE__*/React.createElement("div", { style: { flex: 1 } },
+                  /*#__PURE__*/React.createElement("label", { style: { fontSize: 11, color: "var(--muted)" } }, "OT hrs"),
+                  /*#__PURE__*/React.createElement("input", { type: "number", min: 0, step: 0.5, className: "input", style: { width: "100%" },
+                    value: d.ho,
+                    onChange: ev => setAttDraft(prev => ({ ...prev, [e.id]: { ...(prev[e.id] || { hn: 0 }), ho: ev.target.value } })) }))),
+              /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 12, color: "var(--muted)" } },
+                /*#__PURE__*/React.createElement("span", null, "Gross ", R(s.gross)),
+                /*#__PURE__*/React.createElement("span", null, "PAYE -", R(s.paye)),
+                /*#__PURE__*/React.createElement("span", null, "UIF -", R(s.uif))));
+          })),
+
+        /* ---- totals + save ---- */
+        /*#__PURE__*/React.createElement("div", { className: "card", style: { padding: 16, marginTop: 16, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center", justifyContent: "space-between" } },
+          /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 22, flexWrap: "wrap" } },
+            (() => {
+              const tot = weeklyEmps.reduce((a, e) => {
+                const d = attDraft[e.id] || { hn: 0, ho: 0 };
+                const s = calcWeeklySlip(d.hn, d.ho, e.rate, e.otMult);
+                return { g: a.g + s.gross, n: a.n + s.net, h: a.h + (+d.hn || 0) + (+d.ho || 0) };
+              }, { g: 0, n: 0, h: 0 });
+              return [["Total hours", tot.h.toFixed(1)], ["Total gross", R(Math.round(tot.g))], ["Total net", R(Math.round(tot.n))]].map(([l, v]) =>
+                /*#__PURE__*/React.createElement("div", { key: l },
+                  /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: .5 } }, l),
+                  /*#__PURE__*/React.createElement("div", { style: { fontSize: 18, fontWeight: 800 } }, v)));
+            })()),
+          /*#__PURE__*/React.createElement("button", { className: "btn", disabled: attSaving, onClick: () => saveAttendance() },
+            attSaving ? "Saving..." : "Save week")
+        )
+      )
+  ), tab === "payslips" && /*#__PURE__*/React.createElement("section", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexWrap: "wrap",
@@ -4188,7 +4415,37 @@ function App({
       role: v
     })),
     opts: ROLES
-  }), /*#__PURE__*/React.createElement(FI, {
+  }), /*#__PURE__*/React.createElement(FS, {
+    label: "Pay Type",
+    value: ef.payType === "weekly" ? "Weekly (hourly rate)" : "Monthly (salary)",
+    onChange: v => setEf(f => ({
+      ...f,
+      payType: v.indexOf("Weekly") === 0 ? "weekly" : "monthly"
+    })),
+    opts: ["Monthly (salary)", "Weekly (hourly rate)"]
+  }), ef.payType === "weekly" ? /*#__PURE__*/React.createElement(React.Fragment, null,
+    /*#__PURE__*/React.createElement(FI, {
+      label: "Hourly Rate (R)",
+      value: ef.rate,
+      onChange: v => setEf(f => ({ ...f, rate: v })),
+      type: "number",
+      ph: "48",
+      req: true
+    }),
+    /*#__PURE__*/React.createElement(FI, {
+      label: "Overtime Multiplier",
+      value: ef.otMult,
+      onChange: v => setEf(f => ({ ...f, otMult: v })),
+      type: "number",
+      ph: "1.5"
+    }),
+    /*#__PURE__*/React.createElement(FI, {
+      label: "Site",
+      value: ef.site,
+      onChange: v => setEf(f => ({ ...f, site: v })),
+      ph: "Site A"
+    })
+  ) : /*#__PURE__*/React.createElement(FI, {
     label: "Annual Salary (R)",
     value: ef.sal,
     onChange: v => setEf(f => ({
