@@ -1898,6 +1898,8 @@ function useIsMobile() {
 // SUBSCRIPTION CHECK
 // ══════════════════════════════════════════════
 async function checkSubscriptionDB() {
+  return { status: 'active' }; // DEMO BUILD: subscription gate disabled
+  /* eslint-disable no-unreachable */
   try {
     const { data, error } = await sb.from('nimba_subscription')
       .select('*').order('created_at', { ascending: false }).limit(1).maybeSingle();
